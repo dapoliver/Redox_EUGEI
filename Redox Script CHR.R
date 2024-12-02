@@ -22,7 +22,7 @@ df = read_csv("data_survival.csv")
 df_chr = df %>% filter(Group!="Ctrl")
 df_chr = df_chr %>%
   mutate(Transition_status = ifelse(is.na(Transition_status) & Group == "control", 0, Transition_status))
-df_cc = df_chr %>% subset(select=c(MIR132, MIR34A, MIR9, MIR941, MIR137, Age, Gender, Ethnicity,Transition_status, day_exit))
+df_cc = df_chr %>% subset(select=c(MIR132, MIR34A, MIR9, MIR941, Age, Gender, Ethnicity,Transition_status, day_exit))
 df_cc = df_cc[complete.cases(df_cc),]
 df_cc = df_cc %>% mutate(Gender = as.factor(Gender),
                          Ethnicity = as.factor(Ethnicity))
@@ -33,10 +33,8 @@ levels(data$Transition_status) = c("NT", "T")
 
 
 # Define the predictor sets
-predictors_cox = list(a=c("MIR132", "MIR34A", "MIR9", "MIR941"),
-                      #b=c("MIR132", "MIR34A", "MIR9", "MIR941","MIR137"),
-                      c=c("MIR132", "MIR34A", "MIR9", "MIR941","Age","Gender","Ethnicity")
-                      #d=c("MIR132", "MIR34A", "MIR9", "MIR941","MIR137","Age","Gender","Ethnicity")
+predictors = list(a=c("MIR132", "MIR34A", "MIR9", "MIR941"),
+                  b=c("MIR132", "MIR34A", "MIR9", "MIR941","Age","Gender","Ethnicity")
 )
 
 # Custom function to calculate Brier Score
@@ -68,9 +66,10 @@ temp_results = data.frame(predictors = character(),
                           Calibration_Intercept = numeric(),
                           Calibration_Slope = numeric(),
                           stringsAsFactors = FALSE)
+
 # Loop over each predictor set
 for (i in 1:2) {
-  x = model.matrix(~.-1,data[, predictors_cox[[i]]])
+  x = model.matrix(~.-1,data[, predictors[[i]]])
   y = data$Transition_status
 
   # Loop over each outer fold
@@ -104,7 +103,7 @@ for (i in 1:2) {
     # Save predictions
     all_predictions = rbind(all_predictions, data.frame(
       Subject_ID = test_idx, True_Label = y[test_idx], Predicted_Probability = predictions,
-      Predictor_Set = names(predictors_cox)[i], Fold = fold_num, Repeat = NA
+      Predictor_Set = names(predictors)[i], Fold = fold_num, Repeat = NA
     ))
   }
 
@@ -152,10 +151,10 @@ for (i in 1:2) {
   confusion_matrix = table(Predicted = predicted_class, Actual = factor(y, levels = c("NT", "T")))
   
   # Save confusion matrix to CSV
-  write.csv(as.data.frame(confusion_matrix), paste0("confusion_matrix_", names(predictors_cox)[i], ".csv"), row.names = TRUE)
+  write.csv(as.data.frame(confusion_matrix), paste0("confusion_matrix_", names(predictors)[i], ".csv"), row.names = TRUE)
   
   # Extract coefficients and store
-  coeffs = data.frame(Predictor_Set = names(predictors_cox)[i], 
+  coeffs = data.frame(Predictor_Set = names(predictors)[i], 
                       Variable = rownames(coef(final_full_model)), 
                       Coefficient = as.vector(coef(final_full_model)))
   coef_results = rbind(coef_results, coeffs)
