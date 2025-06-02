@@ -284,3 +284,64 @@ results <- rbind(results, data.frame(
 ))
 # Save calibration results
 write.csv(results, "calibration_results_corr_210225.csv", row.names = FALSE)
+
+# Fit final model
+### Mean offset correction ###
+batch <- as.factor(df_cc$site)
+df_cc_corrected <- df_cc # Start with the original data
+
+### Compute Global Means ###
+global_mean <- colMeans(df_cc[, 1:5, drop = FALSE], na.rm = TRUE)
+# Iterate over each batch
+for (b in levels(batch)) {
+  batch_indices <- which(batch == b) # Indices for samples in batch `b`
+
+  if (length(batch_indices) == 0) {
+    warning(paste("Batch", b, "is empty. Skipping."))
+    next
+  }
+
+  # Extract the subset of test for the current batch
+  batch_data <- df_cc[batch_indices, 1:5, drop = FALSE]
+
+  # Compute row-wise means for this batch
+  batch_mean <- colMeans(batch_data, na.rm = TRUE)
+
+  # Compute the offset: batch mean - global mean
+  offset <- batch_mean - global_mean
+
+  if (length(batch_mean) == 0) {
+    warning(paste("Batch", b, "has no valid data for mean computation. Skipping."))
+    next
+  }
+
+  # Subtract batch means
+  df_cc_corrected[batch_indices, 1:5] <- sweep(
+    batch_data,
+    1,
+    offset,
+    "-"
+  )
+}
+
+predictors <- list(
+  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
+)
+x <- model.matrix(~ . - 1, df_cc_corrected[, predictors[[1]]])
+y <- df_cc_corrected$Transition_status
+
+cv_model <- cv.glmnet(x, y,
+  family = "binomial", alpha = 1,
+  nfolds = 5
+)
+
+final_model <- glmnet(x, y,
+  family = "binomial", alpha = 1,
+  lambda = cv_model$lambda.min
+)
+# Extract coefficients and store
+coef_results <- data.frame(
+  Variable = rownames(coef(final_model)),
+  Coefficient = as.numeric(coef(final_model)),
+  stringsAsFactors = FALSE
+)

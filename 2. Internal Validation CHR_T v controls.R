@@ -209,11 +209,7 @@ calibration <- data.frame(
 
 # Fit logistic calibration
 logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = calibration$observed, Prob = calibration$predicted)
-
-# Save calibration plot
-png(paste0("calibration_plot_hc_210225.png"), width = 600, height = 500)
-print(cal_plot_logistic(calibration, truth = observed, estimate = predicted, smooth = FALSE))
-dev.off()
+cal_plot_breaks(calibration, truth = observed, estimate = predicted, smooth = FALSE)
 
 # Store calibration results
 results <- rbind(results, data.frame(
@@ -280,3 +276,41 @@ ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 30), legend.title = element_text(size = 23), legend.text = element_text(size = 23)) +
   theme_classic()
 ggsave("dca_all_summary_hc_210225.png", width = 20, height = 15, scale = 0.3)
+
+dca <- read_csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/dca_summarya_hc_210225.csv")
+
+dca_all <- dca %>% filter(label != "pred")
+dca <- dca %>% filter(label == "pred")
+
+dca$variable <- "EUGEI"
+dca$label <- "EUGEI"
+
+dca_all <- rbind(dca_all, dca)
+dca_all <- rbind(dca_all, dca_recal_hc)
+summary_table <- dca_all %>% subset(select = c(variable, threshold, net_benefit))
+summary_table_wide <- summary_table %>%
+  pivot_wider(names_from = variable, values_from = net_benefit)
+summary_table_wide <- summary_table_wide %>% mutate(
+  EUGEI = case_when(
+    all > 0 ~ EUGEI - all,
+    TRUE ~ EUGEI
+  ),
+  EUGEI_snb = EUGEI / 0.000266,
+  NAPLS = case_when(
+    all > 0 ~ NAPLS - all,
+    TRUE ~ NAPLS
+  ),
+  NAPLS_snb = NAPLS / 0.000266
+)
+write.csv(summary_table_wide, "net_benefit_summary_table_hc_140525.csv", row.names = FALSE)
+
+dca_all$label <- factor(dca_all$label, levels = c("Treat All", "Treat None", "EUGEI", "NAPLS"))
+ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
+  stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", span = 0.5) +
+  coord_cartesian(ylim = c(-0.15, 0.075)) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 0.5)) +
+  labs(x = "Threshold Probability", y = "Net Benefit", color = "") +
+  scale_color_manual(labels = c("Treat All", "Treat None", "EU-GEI", "NAPLS-3"), values = c("gray80", "#000000", "#599ec4", "#c8526a")) +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 40), legend.title = element_text(size = 23), legend.text = element_text(size = 23)) +
+  theme_classic()
+ggsave("dca_all_summary_hc_210525.png", width = 20, height = 15, scale = 0.3)

@@ -16,23 +16,23 @@ library(rms)
 library(predtools)
 library(Hmisc)
 library(readxl)
+library(survival)
+library(predRupdate)
 
-set.seed(123)
 df <- read_csv("data_survival.csv")
-clinical <- read.csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/PPS EU-GEI/Databases/PPS_processed.csv")
 
-df_chr <- df %>% filter(Group != "AtRisk_NoTr")
-df_chr <- merge(df_chr, clinical, by.x = "st_subjid", by.y = "ID", all.x = TRUE)
+df_chr <- df %>% filter(Group != "Control")
 
-df_chr <- df_chr %>% rename(Gender = Gender.x)
-df_cc <- df_chr %>% subset(select = c(MIR132, MIR34A, MIR9, MIR941, MIR137, Transition_status))
+df_cc <- df_chr %>% subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, Transition_status, day_exit))
 df_cc <- df_cc[complete.cases(df_cc), ]
-df_cc <- df_cc %>% filter(MIR137 < 75)
+df_cc <- df_cc %>% filter(MIR137 < 75) # Remove outliers
 
 data <- df_cc
 
 data$Transition_status <- as.factor((as.character(data$Transition_status)))
-levels(data$Transition_status) <- c("Ctrl", "T")
+levels(data$Transition_status) <- c("NT", "T")
+summary(as.factor(data$Transition_status))
+aggregate(df_cc$day_exit ~ 1, FUN = function(x) c(mean = mean(x), sd = sd(x)))
 
 # Define the predictor sets
 predictors <- list(
@@ -48,8 +48,11 @@ all_predictions <- data.frame(
 
 coef_results <- data.frame(Variable = character(), Coefficient = numeric(), stringsAsFactors = FALSE)
 
+set.seed(123)
+
 # Create 5-fold cross-validation with 5 repeats for outer folds
 outer_folds <- createMultiFolds(data$Transition_status, k = 5, times = 5)
+
 temp_results <- data.frame(
   fold_num = numeric(),
   C = numeric(),
@@ -60,124 +63,39 @@ temp_results <- data.frame(
   NPV = numeric(),
   stringsAsFactors = FALSE
 )
-
-# Loop over each predictor set
 # Loop over each outer fold
 for (fold_num in seq_along(outer_folds)) {
+  set.seed(123)
   train_idx <- outer_folds[[fold_num]]
   test_idx <- setdiff(seq_len(nrow(data)), train_idx)
 
   train <- data[train_idx, ]
   test <- data[test_idx, ]
 
-  ### Compute Global Means ###
-  global_mean <- colMeans(test[, 1:5, drop = FALSE], na.rm = TRUE)
-
-  ### Mean Offset Correction ###
-  batch_test <- as.factor(test$site)
-  test_corrected <- test # Start with the original data
-
-  for (b in levels(batch_test)) {
-    batch_indices <- which(batch_test == b) # Indices for samples in batch `b`
-
-    if (length(batch_indices) == 0) {
-      warning(paste("Batch", b, "is empty. Skipping."))
-      next
-    }
-
-    # Extract the subset of test for the current batch
-    batch_data <- test[batch_indices, 1:5, drop = FALSE] # Exclude site and outcome
-
-    # Compute means for each predictor in this batch
-    batch_mean <- colMeans(batch_data, na.rm = TRUE)
-
-    if (length(batch_mean) == 0) {
-      warning(paste("Batch", b, "has no valid data for mean computation. Skipping."))
-      next
-    }
-
-    # Compute the offset: batch mean - global mean
-    offset <- batch_mean - global_mean
-
-    # Subtract the offset to align the batch with the global mean
-    test_corrected[batch_indices, 1:5] <- sweep(
-      batch_data,
-      1,
-      offset,
-      "-"
-    )
-  }
-  test <- test_corrected # %>% subset(select=c(-site))
-
-  ### Mean offset correction ###
-  batch_train <- as.factor(train$site)
-  train_corrected <- train # Start with the original data
-
-  ### Compute Global Means ###
-  global_mean <- colMeans(train[, 1:5, drop = FALSE], na.rm = TRUE)
-  # Iterate over each batch
-  for (b in levels(batch_train)) {
-    batch_indices <- which(batch_train == b) # Indices for samples in batch `b`
-
-    if (length(batch_indices) == 0) {
-      warning(paste("Batch", b, "is empty. Skipping."))
-      next
-    }
-
-    # Extract the subset of test for the current batch
-    batch_data <- train[batch_indices, 1:5, drop = FALSE]
-
-    # Compute row-wise means for this batch
-    batch_mean <- colMeans(batch_data, na.rm = TRUE)
-
-    # Compute the offset: batch mean - global mean
-    offset <- batch_mean - global_mean
-
-    if (length(batch_mean) == 0) {
-      warning(paste("Batch", b, "has no valid data for mean computation. Skipping."))
-      next
-    }
-
-    # Subtract batch means
-    train_corrected[batch_indices, 1:5] <- sweep(
-      batch_data,
-      1,
-      offset,
-      "-"
-    )
-  }
-
-
-  train <- train_corrected # %>% subset(select=c(-site))
-
-  x <- model.matrix(~ . - 1, train[, predictors[[1]]])
-  y <- train$Transition_status
+  x <- model.matrix(~ . - 1, data[, predictors[[1]]])
+  y <- data$Transition_status
 
   # Define fold IDs for cross-validation
+  set.seed(123)
   foldid <- sample(rep(1:5, length.out = length(y[train_idx])))
 
   # Fit model and predict
-  cv_model <- cv.glmnet(x, y,
+  cv_model <- cv.glmnet(x[train_idx, ], y[train_idx],
     family = "binomial", alpha = 1,
     nfolds = 5, foldid = foldid
   )
 
-  final_model <- glmnet(x, y,
+  final_model <- glmnet(x[train_idx, ], y[train_idx],
     family = "binomial", alpha = 1,
     lambda = cv_model$lambda.min
   )
-
-  x_test <- model.matrix(~ . - 1, test[, predictors[[1]]])
-  y <- test$Transition_status
-
-  predictions <- as.vector(predict(final_model, newx = x_test, type = "response", s = cv_model$lambda.min))
-  PI <- predict(final_model, newx = x_test, type = "link", s = cv_model$lambda.min)
+  predictions <- as.vector(predict(final_model, newx = x[test_idx, ], type = "response"))
 
   # Create confusion matrix for a threshold (e.g., 0.5)
   predicted_labels <- ifelse(predictions >= 0.5, 1, 0)
-  observed <- as.numeric(as.factor(test$Transition_status)) - 1
+  observed <- as.numeric(as.factor(y[test_idx])) - 1
   cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
-  model_test <- glm(y ~ PI, family = binomial)
+  model_test <- glm(y[test_idx] ~ predictions, family = binomial)
 
   # Extract performance measures
   temp_results <- rbind(temp_results, data.frame(
@@ -191,13 +109,14 @@ for (fold_num in seq_along(outer_folds)) {
   ))
   # Save predictions
   all_predictions <- rbind(all_predictions, data.frame(
-    Subject_ID = test_idx, True_Label = test$Transition_status, Predicted_Probability = predictions,
+    Subject_ID = test_idx, True_Label = y[test_idx], Predicted_Probability = predictions,
     Fold = fold_num, Repeat = NA
   ))
 }
 
 temp_mean <- temp_results %>% aggregate(. ~ 1, FUN = "mean")
 temp_sd <- temp_results %>% aggregate(. ~ 1, FUN = "sd")
+
 results_new <- data.frame(
   C = paste0(
     round(temp_mean$C, 3), " (",
@@ -231,11 +150,32 @@ results_new <- data.frame(
   )
 )
 
-write_csv(results_new, "CV_results_corr_HC.csv")
+write_csv(results_new, "CV_results.csv")
 
-write.csv(all_predictions, "predictions_output_corr_HC_210225.csv", row.names = FALSE)
+# Fit the final model on the full dataset and save coefficients
+foldid <- sample(rep(1:5, length.out = length(y)))
 
-predictions_data <- read.csv("predictions_output_corr_HC_210225.csv") # Read the predictions output file
+cv_model <- cv.glmnet(x, y,
+  family = "binomial", alpha = 1,
+  nfolds = 5, foldid = foldid
+)
+
+final_full_model <- glmnet(x, y,
+  family = "binomial", alpha = 1,
+  lambda = cv_model$lambda.min
+)
+
+# Extract coefficients and store
+coeffs <- data.frame(
+  Variable = rownames(coef(final_full_model)),
+  Coefficient = as.vector(coef(final_full_model))
+)
+coef_results <- rbind(coef_results, coeffs)
+
+write.csv(coef_results, "logistic_regression_LASSO_coefficients_210225.csv", row.names = FALSE)
+write.csv(all_predictions, "predictions_output_210225.csv", row.names = FALSE)
+
+predictions_data <- read.csv("predictions_output_210225.csv") # Read the predictions output file
 predictions_data <- predictions_data %>% mutate(
   True_Label = case_when(
     True_Label == "T" ~ 1,
@@ -250,38 +190,100 @@ predictions_data <- predictions_data %>% mutate(
 
 # Initialize results data frame
 results <- data.frame(
-  brier = numeric(),
   calibration_intercept = numeric(),
   calibration_slope = numeric(),
+  brier = numeric(),
   stringsAsFactors = FALSE
 )
 
-# Loop through each predictor set
-subset_data <- predictions_data
+# Initialize summary table for net benefits
+summary_table <- data.frame(
+  Threshold = numeric(),
+  Net_Benefit = numeric(),
+  stringsAsFactors = FALSE
+)
 
-# Average predictions for each subject
-averaged_data <- subset_data %>%
-  group_by(Subject_ID) %>%
-  dplyr::summarize(
-    observed = first(True_Label), # True_Label should be the same for each subject
-    predicted = mean(Predicted_Probability, na.rm = TRUE),
-    .groups = "drop"
-  )
 # Calibration analysis
 calibration <- data.frame(
-  observed = averaged_data$observed, # Already in binary format
-  predicted = averaged_data$predicted
+  observed = predictions_data$True_Label, # Already in binary format
+  predicted = predictions_data$Predicted_Probability
 )
 
 # Fit logistic calibration
 logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = calibration$observed, Prob = calibration$predicted)
+cal_plot_breaks(calibration, truth = observed, estimate = predicted)
 
 # Store calibration results
 results <- rbind(results, data.frame(
-  brier = round(logistic_calibration$BrierScore[1], 2),
   calibration_intercept = round(logistic_calibration$CalInt[1], 2),
-  calibration_slope = round(logistic_calibration$CalSlope[1], 2)
+  calibration_slope = round(logistic_calibration$CalSlope[1], 2),
+  brier = round(logistic_calibration$BrierScore[1], 2)
 ))
 
+# Save calibration plot
+png(paste0("calibration_plot_210225.png"), width = 600, height = 500)
+print(cal_plot_logistic(calibration, truth = observed, estimate = predicted, smooth = FALSE))
+dev.off()
+
+# Decision curve analysis
+dca <- data.frame(
+  obs = as.numeric(as.factor(averaged_data$observed)) - 1, # Already binary
+  pred = averaged_data$predicted
+)
+
+dca_assessment <- dca(obs ~ pred,
+  data = dca,
+  prevalence = 0.22,
+  thresholds = seq(0, 0.5, 0.01)
+) %>%
+  as_tibble()
+
+# Summarize net benefit
+dca_assessment <- dca_assessment %>%
+  group_by(variable, label, threshold)
+
+write.csv(dca_assessment, paste0("dca_summary.csv"), row.names = FALSE)
+
+
 # Save calibration results
-write.csv(results, "calibration_results_corr_HC_210225.csv", row.names = FALSE)
+write.csv(results, "calibration_results_210225.csv", row.names = FALSE)
+
+
+##### DCA summary #####
+dca <- read_csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/dca_summarya.csv")
+
+dca_all <- dca %>% filter(label != "pred")
+dca <- dca %>% filter(label == "pred")
+
+dca$variable <- "EUGEI"
+dca$label <- "EUGEI"
+
+dca_all <- rbind(dca_all, dca)
+dca_all <- rbind(dca_all, dca_recal_chr)
+summary_table <- dca_all %>% subset(select = c(variable, threshold, net_benefit))
+summary_table_wide <- summary_table %>%
+  pivot_wider(names_from = variable, values_from = net_benefit)
+summary_table_wide <- summary_table_wide %>% mutate(
+  EUGEI = case_when(
+    all > 0 ~ EUGEI - all,
+    TRUE ~ EUGEI
+  ),
+  EUGEI_snb = EUGEI / 0.22,
+  NAPLS = case_when(
+    all > 0 ~ NAPLS - all,
+    TRUE ~ NAPLS
+  ),
+  NAPLS_snb = NAPLS / 0.22
+)
+write.csv(summary_table_wide, "net_benefit_summary_table_020525.csv", row.names = FALSE)
+
+dca_all$label <- factor(dca_all$label, levels = c("Treat All", "Treat None", "EUGEI", "NAPLS"))
+ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
+  stat_smooth(method = "loess", se = FALSE, formula = "y ~ x", span = 0.5) +
+  coord_cartesian(ylim = c(-0.005, 0.25)) +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 0.5)) +
+  labs(x = "Threshold Probability", y = "Net Benefit", color = "") +
+  scale_color_manual(labels = c("Treat All", "Treat None", "EU-GEI", "NAPLS-3"), values = c("gray80", "#000000", "#599ec4", "#c8526a")) +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 40), legend.title = element_text(size = 23), legend.text = element_text(size = 23)) +
+  theme_classic()
+ggsave("dca_all_summary_210525.png", width = 20, height = 15, scale = 0.3)
