@@ -59,6 +59,8 @@ temp_results <- data.frame(
   balanced_accuracy = numeric(),
   PPV = numeric(),
   NPV = numeric(),
+  LR_pos = numeric(),
+  LR_neg = numeric(),
   stringsAsFactors = FALSE
 )
 
@@ -101,17 +103,25 @@ for (fold_num in seq_along(outer_folds)) {
     specificity = cm$byClass["Specificity"],
     balanced_accuracy = cm$byClass["Balanced Accuracy"],
     PPV = cm$byClass["Pos Pred Value"],
-    NPV = cm$byClass["Neg Pred Value"]
+    NPV = cm$byClass["Neg Pred Value"],
+    LR_pos = posLr(obs = observed, pred = predicted_labels, pos_level = 1)$posLr,
+    LR_neg = negLr(obs = observed, pred = predicted_labels, pos_level = 1)$negLr
   ))
   # Save predictions
   all_predictions <- rbind(all_predictions, data.frame(
     Subject_ID = test_idx, True_Label = y[test_idx], Predicted_Probability = predictions,
-    Fold = fold_num, Repeat = rep
+    Fold = fold_num, Repeat = NA
   ))
 }
 
-temp_mean <- temp_results %>% aggregate(. ~ 1, FUN = "mean")
-temp_sd <- temp_results %>% aggregate(. ~ 1, FUN = "sd")
+temp_results <- temp_results %>% mutate(LR_pos = case_when(
+  is.infinite(LR_pos) ~ NA,
+  TRUE ~ LR_pos
+))
+
+temp_mean <- temp_results %>% aggregate(. ~ 1, FUN = "mean", na.rm = TRUE)
+temp_sd <- temp_results %>% aggregate(. ~ 1, FUN = "sd", na.rm = TRUE)
+
 results_new <- data.frame(
   C = paste0(
     round(temp_mean$C, 3), " (",
@@ -142,8 +152,19 @@ results_new <- data.frame(
     round(temp_mean$NPV * 100, 1), "% (",
     round(temp_mean$NPV * 100 - 1.96 * (temp_sd$NPV) * 100, 1), "%-",
     round(temp_mean$NPV * 100 + 1.96 * (temp_sd$NPV) * 100, 1), "%)"
+  ),
+  posLR = paste0(
+    round(temp_mean$LR_pos, 3), " (",
+    round(temp_mean$LR_pos - 1.96 * (temp_sd$LR_pos), 3), "-",
+    round(temp_mean$LR_pos + 1.96 * (temp_sd$LR_pos), 3), ")"
+  ),
+  negLR = paste0(
+    round(temp_mean$LR_neg, 3), " (",
+    round(temp_mean$LR_neg - 1.96 * (temp_sd$LR_neg), 3), "-",
+    round(temp_mean$LR_neg + 1.96 * (temp_sd$LR_neg), 3), ")"
   )
 )
+
 
 write_csv(results_new, "CV_results_HC.csv")
 

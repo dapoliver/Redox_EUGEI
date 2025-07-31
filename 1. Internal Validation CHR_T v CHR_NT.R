@@ -17,13 +17,15 @@ library(predtools)
 library(Hmisc)
 library(readxl)
 library(survival)
+library(survminer)
 library(predRupdate)
+library(metrica)
 
 df <- read_csv("data_survival.csv")
 
 df_chr <- df %>% filter(Group != "Control")
 
-df_cc <- df_chr %>% subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, Transition_status, day_exit))
+df_cc <- df_chr %>% subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, Transition_status))
 df_cc <- df_cc[complete.cases(df_cc), ]
 df_cc <- df_cc %>% filter(MIR137 < 75) # Remove outliers
 
@@ -61,6 +63,8 @@ temp_results <- data.frame(
   balanced_accuracy = numeric(),
   PPV = numeric(),
   NPV = numeric(),
+  LR_pos = numeric(),
+  LR_neg = numeric(),
   stringsAsFactors = FALSE
 )
 # Loop over each outer fold
@@ -105,7 +109,9 @@ for (fold_num in seq_along(outer_folds)) {
     specificity = cm$byClass["Specificity"],
     balanced_accuracy = cm$byClass["Balanced Accuracy"],
     PPV = cm$byClass["Pos Pred Value"],
-    NPV = cm$byClass["Neg Pred Value"]
+    NPV = cm$byClass["Neg Pred Value"],
+    LR_pos = posLr(obs = observed, pred = predicted_labels, pos_level = 1)$posLr,
+    LR_neg = negLr(obs = observed, pred = predicted_labels, pos_level = 1)$negLr
   ))
   # Save predictions
   all_predictions <- rbind(all_predictions, data.frame(
@@ -114,8 +120,13 @@ for (fold_num in seq_along(outer_folds)) {
   ))
 }
 
-temp_mean <- temp_results %>% aggregate(. ~ 1, FUN = "mean")
-temp_sd <- temp_results %>% aggregate(. ~ 1, FUN = "sd")
+temp_results <- temp_results %>% mutate(LR_pos = case_when(
+  is.infinite(LR_pos) ~ NA,
+  TRUE ~ LR_pos
+))
+
+temp_mean <- temp_results %>% aggregate(. ~ 1, FUN = "mean", na.rm = TRUE)
+temp_sd <- temp_results %>% aggregate(. ~ 1, FUN = "sd", na.rm = TRUE)
 
 results_new <- data.frame(
   C = paste0(
@@ -147,6 +158,16 @@ results_new <- data.frame(
     round(temp_mean$NPV * 100, 1), "% (",
     round(temp_mean$NPV * 100 - 1.96 * (temp_sd$NPV) * 100, 1), "%-",
     round(temp_mean$NPV * 100 + 1.96 * (temp_sd$NPV) * 100, 1), "%)"
+  ),
+  posLR = paste0(
+    round(temp_mean$LR_pos, 3), " (",
+    round(temp_mean$LR_pos - 1.96 * (temp_sd$LR_pos), 3), "-",
+    round(temp_mean$LR_pos + 1.96 * (temp_sd$LR_pos), 3), ")"
+  ),
+  negLR = paste0(
+    round(temp_mean$LR_neg, 3), " (",
+    round(temp_mean$LR_neg - 1.96 * (temp_sd$LR_neg), 3), "-",
+    round(temp_mean$LR_neg + 1.96 * (temp_sd$LR_neg), 3), ")"
   )
 )
 
@@ -244,10 +265,8 @@ dca_assessment <- dca_assessment %>%
 
 write.csv(dca_assessment, paste0("dca_summary.csv"), row.names = FALSE)
 
-
 # Save calibration results
 write.csv(results, "calibration_results_210225.csv", row.names = FALSE)
-
 
 ##### DCA summary #####
 dca <- read_csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/dca_summarya.csv")

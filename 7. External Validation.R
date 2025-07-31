@@ -111,7 +111,7 @@ concordance(glm(Transition ~ PI_CHR, data = df_chr, family = binomial(link = "lo
 
 df_chr$risk <- 1 / (1 + exp(-df_chr$PI_CHR))
 
-predicted_labels <- ifelse(df_chr$risk >= 0.25, 1, 0)
+predicted_labels <- ifelse(df_chr$risk >= 0.5, 1, 0)
 observed <- as.numeric(as.factor(df_chr$Transition)) - 1
 cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
 
@@ -250,7 +250,7 @@ concordance(glm(Transition ~ PI_CHR, data = df_chr_corrected, family = binomial(
 
 df_chr_corrected$risk <- 1 / (1 + exp(-df_chr_corrected$PI_CHR))
 
-predicted_labels <- ifelse(df_chr_corrected$risk >= 0.25, 1, 0)
+predicted_labels <- ifelse(df_chr_corrected$risk >= 0.5, 1, 0)
 observed <- as.numeric(as.factor(df_chr_corrected$Transition)) - 1
 cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
 
@@ -299,7 +299,7 @@ concordance(glm(Transition ~ PI_HC, data = df_hc, family = binomial(link = "logi
 
 df_hc$risk <- 1 / (1 + exp(-df_hc$PI_HC))
 
-predicted_labels <- ifelse(df_hc$risk >= 0.25, 1, 0)
+predicted_labels <- ifelse(df_hc$risk >= 0.5, 1, 0)
 observed <- as.numeric(as.factor(df_hc$Transition)) - 1
 cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
 
@@ -463,7 +463,7 @@ concordance(glm(Transition ~ PI_CHR, data = df_cc_corrected, family = binomial(l
 
 df_cc_corrected$risk <- 1 / (1 + exp(-df_cc_corrected$PI_CHR))
 
-predicted_labels <- ifelse(df_cc_corrected$risk >= 0.25, 1, 0)
+predicted_labels <- ifelse(df_cc_corrected$risk >= 0.5, 1, 0)
 observed <- as.numeric(as.factor(df_cc_corrected$Transition)) - 1
 cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
 
@@ -577,7 +577,7 @@ concordance(glm(Transition ~ PI_HC, data = df_hc_corrected, family = binomial(li
 
 df_hc_corrected$risk <- 1 / (1 + exp(-df_hc_corrected$PI_HC))
 
-predicted_labels <- ifelse(df_hc_corrected$risk >= 0.25, 1, 0)
+predicted_labels <- ifelse(df_hc_corrected$risk >= 0.5, 1, 0)
 observed <- as.numeric(as.factor(df_hc_corrected$Transition)) - 1
 cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
 
@@ -642,3 +642,84 @@ calibration_recal <- calibration_recal %>%
     )
   )
 logistic_calibration_recal <- predRupdate::pred_val_probs(binary_outcome = calibration_recal$observed, Prob = calibration_recal$predicted, cal_plot = FALSE)
+
+##### Likelihood Ratio Plot #####
+classification_chr <- data.frame(
+  threshold = numeric(),
+  balanced_accuracy = numeric(),
+  sensitivity = numeric(),
+  specificity = numeric(),
+  ppv = numeric(),
+  npv = numeric(),
+  LR_pos = numeric(),
+  LR_neg = numeric()
+)
+recal_model <- glm(Transition ~ PI_CHR, data = df_chr, family = binomial(link = "logit"))
+recalibrated_probs <- predict(recal_model, type = "response")
+
+for (i in seq(0.01, 1, by = 0.01)) {
+  predicted_labels <- ifelse(recalibrated_probs >= i, 1, 0)
+  observed <- as.numeric(as.factor(df_chr$Transition)) - 1
+  cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
+
+  classification_chr <- rbind(classification_chr, data.frame(
+    threshold = i,
+    balanced_accuracy = cm$byClass[11],
+    sensitivity = cm$byClass[1],
+    specificity = cm$byClass[2],
+    ppv = cm$byClass[3],
+    npv = cm$byClass[4],
+    LR_pos = posLr(obs = observed, pred = predicted_labels, pos_level = 1)$posLr,
+    LR_neg = negLr(obs = observed, pred = predicted_labels, pos_level = 1)$negLr
+  ))
+}
+
+ggplot(data = classification_chr, aes(x = threshold * 100)) +
+  geom_line(aes(y = LR_pos, color = "Positive Likelihood Ratio"), size = 1.5) +
+  geom_line(aes(y = LR_neg, color = "Negative Likelihood Ratio"), size = 1.5) +
+  labs(
+    x = "Threshold Probability (%)",
+    y = "Likelihood Ratio",
+    color = "Metric"
+  ) +
+  scale_color_manual(
+    values = c("Negative Likelihood Ratio" = "#c8526a", "Positive Likelihood Ratio" = "#599ec4"),
+    labels = c("Negative Likelihood Ratio", "Positive Likelihood Ratio")
+  ) +
+  theme_classic() +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 20))
+ggsave("likelihood_ratio_plot_210725.png", width = 42, height = 32, units = "cm", scale = 0.65)
+
+ggplot(data = classification_chr, aes(x = threshold * 100)) +
+  geom_line(aes(y = ppv, color = "PPV"), size = 1.5) +
+  geom_line(aes(y = npv, color = "NPV"), size = 1.5) +
+  labs(
+    x = "Threshold Probability (%)",
+    y = "Positive/Negative Predictive Value",
+    color = "Metric"
+  ) +
+  scale_color_manual(
+    values = c("NPV" = "#c8526a", "PPV" = "#599ec4"),
+    labels = c("NPV", "PPV")
+  ) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 20))
+ggsave("ppv_npv_plot_210725.png", width = 42, height = 32, units = "cm", scale = 0.65)
+
+ggplot(data = classification_chr, aes(x = threshold * 100)) +
+  geom_line(aes(y = specificity, color = "Specificity"), size = 1.5) +
+  geom_line(aes(y = sensitivity, color = "Sensitivity"), size = 1.5) +
+  labs(
+    x = "Threshold Probability (%)",
+    y = "Sensitivity/Specificity",
+    color = "Metric"
+  ) +
+  scale_color_manual(
+    values = c("Sensitivity" = "#c8526a", "Specificity" = "#599ec4"),
+    labels = c("Sensitivity", "Specificity")
+  ) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 20))
+ggsave("sens_spec_plot_210725.png", width = 42, height = 32, units = "cm", scale = 0.65)

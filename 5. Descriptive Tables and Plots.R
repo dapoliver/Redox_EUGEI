@@ -25,11 +25,15 @@ library(gtsummary)
 df <- read_csv("data_survival.csv")
 clinical <- read.csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/PPS EU-GEI/Databases/PPS_processed.csv")
 
+##### Table 1 #####
+
 df_chr <- df
 df_chr <- merge(df_chr, clinical, by.x = "st_subjid", by.y = "ID", all.x = TRUE)
 df_chr$GAF <- rowMeans(df_chr[, c("gafex01", "gafex02")], na.rm = TRUE)
 
 df_chr <- df_chr %>% dplyr::rename(Gender = Gender.x)
+df_chr <- df_chr %>% filter(!is.na(MIR132))
+
 tbl <- tbl_summary(
   include = c(Age, Gender, Ethnicity, CAARMS, GAF), data = df_chr, by = Group,
   type = list(
@@ -44,7 +48,75 @@ tbl <- tbl_summary(
   )
 )
 
-df_cc <- df_chr %>% subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137))
+##### Results Summary Plot #####
+results_plot <- data.frame(
+  Type = c(
+    "CHR-T v CHR-NT",
+    "CHR-T v CHR-NT",
+    "CHR-T v Controls",
+    "CHR-T v Controls"
+  ),
+  sample = c(
+    "EU-GEI",
+    "NAPLS-3",
+    "EU-GEI",
+    "NAPLS-3"
+  ),
+  C = c(
+    0.988,
+    0.998,
+    0.938,
+    0.731
+  ),
+  lCI = c(
+    0.944,
+    0.981,
+    0.842,
+    0.713
+  ),
+  uCI = c(
+    1,
+    1,
+    1,
+    0.750
+  )
+)
+results_plot$Type <- factor(results_plot$Type, levels = c("CHR-T v CHR-NT", "CHR-T v Controls"))
+results_plot$sample <- factor(results_plot$sample, levels = c("EU-GEI", "NAPLS-3"))
+
+ggplot(data = results_plot, aes(x = Type, group = sample)) +
+  geom_rect(
+    data = results_plot, aes(), xmin = 0, xmax = 9.5, ymin = 0.5, ymax = 0.7,
+    fill = "gray92"
+  ) +
+  geom_rect(
+    data = results_plot, aes(), xmin = 0, xmax = 9.5, ymin = 0.8, ymax = 0.9,
+    fill = "gray92"
+  ) +
+  geom_text(aes(x = 1.5, y = 0.6, label = "Above chance"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.5, y = 0.45, label = "Below chance"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.5, y = 0.75, label = "Acceptable"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.5, y = 0.85, label = "Excellent"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.5, y = 0.95, label = "Outstanding"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
+  geom_text(aes(x = 0.75, y = 1.05, label = "0.99"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.25, y = 1.05, label = "1.00"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.75, y = 1.05, label = "0.94"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
+  geom_text(aes(x = 2.25, y = 1.05, label = "0.73"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_pointrange(data = results_plot, mapping = aes(x = Type, y = C, ymin = lCI, ymax = uCI, color = sample), size = 2, fatten = 2, position = position_dodge(width = 1)) +
+  scale_color_manual(values = c("#599ec4", "#c8526a")) +
+  theme_classic() +
+  xlab("Model") +
+  ylab("C-index") +
+  scale_y_continuous(breaks = seq(0.5, 1, by = 0.1)) +
+  guides(color = guide_legend(title = "Sample")) +
+  theme(text = element_text(family = "Roboto", face = "bold", size = 21), legend.position = "right", legend.title = element_text(size = 23), legend.text = element_text(size = 23))
+ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/Figure 2.png", width = 42, height = 32, units = "cm", scale = 0.65)
+
+##### Univariate analyses #####
+
+df_cc <- df_chr %>%
+  rename(day_exit = day_exit.x) %>%
+  subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, day_exit))
 df_cc <- df_cc[complete.cases(df_cc), ]
 df_cc <- df_cc %>% filter(MIR137 < 75)
 
@@ -164,17 +236,82 @@ wilcox_effsize(MIR941 ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_NoTr", "C
 df_NAPLS <- read_csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/NAPLS/NAPLS.csv")
 
 df_NAPLS <- df_NAPLS %>%
-  mutate(Group = case_when(
-    `GROUP (UC = CTRL group)` == "UC" ~ "Control",
-    `GROUP (UC = CTRL group)` == "CHR-C" ~ "AtRisk_Trans",
-    `GROUP (UC = CTRL group)` == "CHR-NC" ~ "AtRisk_NoTr"
-  )) %>%
-  rename(MIR9 = `miR-9`, MIR34A = `miR-34`, MIR132 = `miR-132`, MIR137 = `miR-137`, MIR941 = `miR-941`) %>%
+  mutate(
+    Group = case_when(
+      `GROUP (UC = CTRL group)` == "UC" ~ "Control",
+      `GROUP (UC = CTRL group)` == "CHR-C" ~ "AtRisk_Trans",
+      `GROUP (UC = CTRL group)` == "CHR-NC" ~ "AtRisk_NoTr"
+    ),
+    P2_P3_SOPS = case_when(
+      P2_SOPS > P3_SOPS ~ P2_SOPS,
+      TRUE ~ P3_SOPS
+    ),
+    P1_CAARMS = case_when(
+      P1_SOPS == 0 ~ 0.011,
+      P1_SOPS == 1 ~ 0.916,
+      P1_SOPS == 2 ~ 1.816,
+      P1_SOPS == 3 ~ 2.759,
+      P1_SOPS == 4 ~ 3.799,
+      P1_SOPS == 5 ~ 4.976,
+      P1_SOPS == 6 ~ 6.033
+    ),
+    P2_CAARMS = case_when(
+      P2_P3_SOPS == 0 ~ 0.007,
+      P2_P3_SOPS == 1 ~ 0.919,
+      P2_P3_SOPS == 2 ~ 1.778,
+      P2_P3_SOPS == 3 ~ 2.735,
+      P2_P3_SOPS == 4 ~ 3.806,
+      P2_P3_SOPS == 5 ~ 4.991,
+      P2_P3_SOPS == 6 ~ 6.025
+    ),
+    P3_CAARMS = case_when(
+      P4_SOPS == 0 ~ 0.013,
+      P4_SOPS == 1 ~ 1.112,
+      P4_SOPS == 2 ~ 2.106,
+      P4_SOPS == 3 ~ 3.045,
+      P4_SOPS == 4 ~ 4.059,
+      P4_SOPS == 5 ~ 5.153,
+      P4_SOPS == 6 ~ 6.099
+    ),
+    P4_CAARMS = case_when(
+      P5_SOPS == 0 ~ 0.079,
+      P5_SOPS == 1 ~ 1.126,
+      P5_SOPS == 2 ~ 2.017,
+      P5_SOPS == 3 ~ 2.968,
+      P5_SOPS == 4 ~ 3.936,
+      P5_SOPS == 5 ~ 4.844,
+      P5_SOPS == 6 ~ 5.889
+    ),
+    CAARMS = P1_CAARMS + P2_CAARMS + P3_CAARMS + P4_CAARMS,
+    Transition = ifelse(`GROUP (UC = CTRL group)` == "CHR-C", 1, 0),
+    Ethnicity = case_when(
+      demo_racial == "European" ~ "White",
+      demo_racial == "African" ~ "Black",
+      demo_racial == "East Asian" | demo_racial == "South Asian" ~ "Asian",
+      demo_racial == "Interracial" ~ "Mixed",
+      TRUE ~ "Other"
+    )
+  ) %>%
+  rename(MIR9 = `miR-9`, MIR34A = `miR-34`, MIR132 = `miR-132`, MIR137 = `miR-137`, MIR941 = `miR-941`, day_exit = fudays) %>%
   subset(select = c(
-    MIR9, MIR34A, MIR132, MIR137, MIR941, Group
+    MIR9, MIR34A, MIR132, MIR137, MIR941, Group, demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction, day_exit
   ))
 
 df_NAPLS <- df_NAPLS %>% filter(MIR941 < 100)
+
+tbl_NAPLS <- tbl_summary(
+  include = c(demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction), data = df_NAPLS, by = Group,
+  type = list(
+    demo_age_ym ~ "continuous2",
+    CAARMS ~ "continuous2",
+    GlobalAssessmentFunction ~ "continuous2"
+  ),
+  statistic = list(all_continuous() ~ c("{mean}", "{sd}")),
+  digits = list(
+    all_continuous() ~ c(1, 1),
+    all_categorical() ~ c(0, 1)
+  )
+)
 
 shapiro.test(df_NAPLS$MIR9)
 shapiro.test(df_NAPLS$MIR34A)
@@ -249,6 +386,8 @@ univ.summary <- data.frame(
 
 univ.summary$p.value <- p.adjust(univ.summary$p.value, method = "BH")
 write_csv(univ.summary, "univariate_summary.csv")
+
+##### Descriptive Figures #####
 
 df_NAPLS$study <- factor(c("NAPLS-3"), levels = c("EU-GEI", "NAPLS-3"))
 data$study <- factor(c("EU-GEI"), levels = c("EU-GEI", "NAPLS-3"))
@@ -495,3 +634,42 @@ combined_plot <- ggarrange(
   ncol = 3, nrow = 4
 )
 ggsave("Figure 4 wide 220525.png", combined_plot, width = 20, height = 22, scale = 0.5)
+
+##### Descriptive PI plots #####
+df_NAPLS <- df_NAPLS %>% mutate(PI_CHR = 2.74417757 + (-2.685152 * MIR9) + (6.99712917 * MIR34A) + (0.60454662 * MIR132) + (-0.447368 * MIR137) + (-15.028186 * MIR941))
+df_NAPLS$risk <- 1 / (1 + exp(-df_NAPLS$PI_CHR))
+df_NAPLS_chr <- df_NAPLS %>% filter(Group != "Control" & !is.na(risk))
+df_NAPLS_chr <- df_NAPLS_chr %>% mutate(Transition = case_when(Group == "AtRisk_Trans" ~ 1, TRUE ~ 0))
+recal_model <- glm(Transition ~ PI_CHR, data = df_NAPLS_chr, family = binomial(link = "logit"))
+df_NAPLS_chr$recalibrated_probs <- predict(recal_model, type = "response")
+
+ggplot(data = df_NAPLS_chr, aes(x = recalibrated_probs * 100, fill = Group)) +
+  geom_histogram() +
+  scale_fill_manual(
+    values = c("#c8526a", "#599ec4"),
+    labels = c("CHR-NT", "CHR-T")
+  ) +
+  labs(x = "Risk (%)", y = "Frequency") +
+  theme_classic() +
+  theme(legend.position = "top")
+ggsave("Risk Histogram.png", width = 20, height = 22, scale = 0.5)
+
+##### KM plot ######
+data_all <- rbind(data, df_NAPLS)
+data_all <- data_all %>%
+  filter(Group != "Control") %>%
+  mutate(Transition_status = case_when(Group == "AtRisk_Trans" ~ 1, Group == "AtRisk_NoTr" ~ 0))
+
+pdf("KM.pdf")
+ggsurvplot(survfit(Surv(day_exit, Transition_status) ~ study, data = data_all),
+  fun = "event",
+  xscale = 365.25,
+  break.time.by = 182.625,
+  xlab = "Time (years)",
+  palette = c("#599ec4", "#c8526a"),
+  risk.table = FALSE,
+  cumevents = TRUE,
+  conf.int = FALSE
+)
+dev.off()
+ggsave("KM.png", width = 42, height = 32, units = "cm", scale = 0.65)
