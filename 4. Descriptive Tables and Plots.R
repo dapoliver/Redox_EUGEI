@@ -1,4 +1,4 @@
-setwd("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/")
+setwd("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/")
 
 # Load necessary libraries
 library(tidyverse)
@@ -22,7 +22,8 @@ library(readxl)
 library(rstatix)
 library(gtsummary)
 
-df <- read_csv("data_survival.csv")
+# df <- read_csv("data_survival.csv")
+df <- read_excel("Eugei vf 0810 final BATCH 091025.xlsx")
 clinical <- read.csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/PPS EU-GEI/Databases/PPS_processed.csv")
 
 ##### Table 1 #####
@@ -63,22 +64,22 @@ results_plot <- data.frame(
     "NAPLS-3"
   ),
   C = c(
-    0.988,
-    0.998,
-    0.938,
-    0.731
+    0.933,
+    0.993,
+    0.908,
+    0.868
   ),
   lCI = c(
-    0.944,
-    0.981,
-    0.842,
-    0.713
+    0.919,
+    0.976,
+    0.876,
+    0.850
   ),
   uCI = c(
+    0.947,
     1,
-    1,
-    1,
-    0.750
+    0.940,
+    0.887
   )
 )
 results_plot$Type <- factor(results_plot$Type, levels = c("CHR-T v CHR-NT", "CHR-T v Controls"))
@@ -98,10 +99,10 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   geom_text(aes(x = 1.5, y = 0.75, label = "Acceptable"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 1.5, y = 0.85, label = "Excellent"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 1.5, y = 0.95, label = "Outstanding"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
-  geom_text(aes(x = 0.75, y = 1.05, label = "0.99"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
-  geom_text(aes(x = 1.25, y = 1.05, label = "1.00"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
-  geom_text(aes(x = 1.75, y = 1.05, label = "0.94"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
-  geom_text(aes(x = 2.25, y = 1.05, label = "0.73"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 0.75, y = 1.05, label = "0.93"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.25, y = 1.05, label = "0.99"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.75, y = 1.05, label = "0.91"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
+  geom_text(aes(x = 2.25, y = 1.05, label = "0.87"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
   geom_pointrange(data = results_plot, mapping = aes(x = Type, y = C, ymin = lCI, ymax = uCI, color = sample), size = 2, fatten = 2, position = position_dodge(width = 1)) +
   scale_color_manual(values = c("#599ec4", "#c8526a")) +
   theme_classic() +
@@ -110,15 +111,14 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   scale_y_continuous(breaks = seq(0.5, 1, by = 0.1)) +
   guides(color = guide_legend(title = "Sample")) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 21), legend.position = "right", legend.title = element_text(size = 23), legend.text = element_text(size = 23))
-ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/Figure 2.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/Figure 2 171025.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ##### Univariate analyses #####
 
 df_cc <- df_chr %>%
-  rename(day_exit = day_exit.x) %>%
-  subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, day_exit))
+  subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137))
 df_cc <- df_cc[complete.cases(df_cc), ]
-df_cc <- df_cc %>% filter(MIR137 < 75)
+# df_cc <- df_cc %>% filter(MIR137 < 75)
 
 data <- df_cc
 data$study <- "EU-GEI"
@@ -130,6 +130,7 @@ shapiro.test(df_cc$MIR137)
 shapiro.test(df_cc$MIR941)
 
 univ.summary <- data.frame(
+  study = "EU-GEI",
   miRNA = c(
     "miR9", "miR34A", "miR132", "miR137", "miR941",
     "miR9", "miR34A", "miR132", "miR137", "miR941",
@@ -194,7 +195,7 @@ univ.summary <- data.frame(
 )
 
 univ.summary$p.value <- p.adjust(univ.summary$p.value, method = "BH")
-write_csv(univ.summary, "univariate_summary_EUGEI.csv")
+write_csv(univ.summary, "univariate_summary_EUGEI_111025.csv")
 
 wilcox.test(MIR9 ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_Trans", "AtRisk_NoTr"), ])
 wilcox.test(MIR34A ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_Trans", "AtRisk_NoTr"), ])
@@ -233,7 +234,7 @@ wilcox_effsize(MIR137 ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_NoTr", "C
 wilcox_effsize(MIR941 ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_NoTr", "Control"), ], ci = TRUE)
 
 # Load NAPLS data
-df_NAPLS <- read_csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Redox EU-GEI/NAPLS/NAPLS.csv")
+df_NAPLS <- read_excel("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/NAPLS/NAPLS BATCH info17102025.xlsx")
 
 df_NAPLS <- df_NAPLS %>%
   mutate(
@@ -297,8 +298,6 @@ df_NAPLS <- df_NAPLS %>%
     MIR9, MIR34A, MIR132, MIR137, MIR941, Group, demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction, day_exit
   ))
 
-df_NAPLS <- df_NAPLS %>% filter(MIR941 < 100)
-
 tbl_NAPLS <- tbl_summary(
   include = c(demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction), data = df_NAPLS, by = Group,
   type = list(
@@ -320,7 +319,8 @@ shapiro.test(df_NAPLS$MIR137)
 shapiro.test(df_NAPLS$MIR941)
 
 
-univ.summary <- data.frame(
+univ.summary_NAPLS <- data.frame(
+  study = "NAPLS-3",
   miRNA = c(
     "miR9", "miR34A", "miR132", "miR137", "miR941",
     "miR9", "miR34A", "miR132", "miR137", "miR941",
@@ -385,7 +385,7 @@ univ.summary <- data.frame(
 )
 
 univ.summary$p.value <- p.adjust(univ.summary$p.value, method = "BH")
-write_csv(univ.summary, "univariate_summary.csv")
+write_csv(univ.summary, "univariate_summary_NAPLS.csv")
 
 ##### Descriptive Figures #####
 
@@ -397,13 +397,13 @@ MIR_9_plot <- ggplot(aes(x = Group, y = MIR9, fill = study, colour = study), dat
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
     colour = "black",
-    annotations = c("***", "**"),
+    annotations = c("***", "***"),
     tip_length = 0.02
   ) +
   theme_classic() +
@@ -418,7 +418,7 @@ MIR_34A_plot <- ggplot(aes(x = Group, y = MIR34A, fill = study, colour = study),
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
@@ -439,13 +439,13 @@ MIR_132_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = study),
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("**", "***"),
+    annotations = c("***", "***"),
     tip_length = 0.02,
     y_position = c(
       max(data$MIR132, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -464,7 +464,7 @@ MIR_137_plot <- ggplot(aes(x = Group, y = MIR137, fill = study, colour = study),
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
@@ -495,7 +495,7 @@ MIR_941_plot <- ggplot(aes(x = Group, y = MIR941, fill = study, colour = study),
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("**", "***"),
+    annotations = c("***", "***"),
     tip_length = 0.02,
     y_position = c(
       max(data$MIR941, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -514,13 +514,13 @@ MIR_9_NAPLS_plot <- ggplot(aes(x = Group, y = MIR9, fill = study, colour = study
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("***", "**"),
     tip_length = 0.02
   ) +
   theme_classic() +
@@ -535,13 +535,13 @@ MIR_34A_NAPLS_plot <- ggplot(aes(x = Group, y = MIR34A, fill = study, colour = s
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
     colour = "black",
-    annotations = c("***", "**"),
+    annotations = c("***", "***"),
     tip_length = 0.02
   ) +
   theme_classic() +
@@ -556,16 +556,17 @@ MIR_132_NAPLS_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = s
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
+    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("***", "*", "***"),
     tip_length = 0.02,
     y_position = c(
       max(df_NAPLS$MIR132, na.rm = TRUE) * 1.05, # First significance bar slightly above max
+      max(df_NAPLS$MIR132, na.rm = TRUE) * 1.05,
       max(df_NAPLS$MIR132, na.rm = TRUE) * 1.15
     ) # Second one higher up
   ) +
@@ -581,13 +582,13 @@ MIR_137_NAPLS_plot <- ggplot(aes(x = Group, y = MIR137, fill = study, colour = s
     alpha = .5, rain.side = "l",
     boxplot.args = list(color = "black", outlier.shape = NA),
     boxplot.args.pos = list(
-      position = ggpp::position_dodgenudge(x = .2, width = 0.2), width = 0.15
+      position = ggpp::position_dodgenudge(x = 0.15, width = 0.2), width = 0.15
     )
   ) +
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "Control"), c("AtRisk_Trans", "Control")),
     colour = "black",
-    annotations = c("**", "**"),
+    annotations = c("**", "***"),
     tip_length = 0.02,
     y_position = c(
       max(df_NAPLS$MIR137, na.rm = TRUE) * 1.15, # First significance bar slightly above max
@@ -633,13 +634,16 @@ combined_plot <- ggarrange(
   MIR_132_NAPLS_plot, MIR_137_NAPLS_plot, MIR_941_NAPLS_plot, # NULL for the empty spot
   ncol = 3, nrow = 4
 )
-ggsave("Figure 4 wide 220525.png", combined_plot, width = 20, height = 22, scale = 0.5)
+ggsave("Figure 4 wide 171025.png", combined_plot, width = 20, height = 22, scale = 0.5)
 
 ##### Descriptive PI plots #####
-df_NAPLS <- df_NAPLS %>% mutate(PI_CHR = 2.74417757 + (-2.685152 * MIR9) + (6.99712917 * MIR34A) + (0.60454662 * MIR132) + (-0.447368 * MIR137) + (-15.028186 * MIR941))
+df_NAPLS <- df_NAPLS %>% mutate(PI_CHR = -1.4588309 + (-0.7308739 * MIR9) + (1.02934979 * MIR34A) + (-0.2071588 * MIR132) + (0 * MIR137) + (-1.1861267 * MIR941))
 df_NAPLS$risk <- 1 / (1 + exp(-df_NAPLS$PI_CHR))
-df_NAPLS_chr <- df_NAPLS %>% filter(Group != "Control" & !is.na(risk))
-df_NAPLS_chr <- df_NAPLS_chr %>% mutate(Transition = case_when(Group == "AtRisk_Trans" ~ 1, TRUE ~ 0))
+df_NAPLS_chr <- df_NAPLS %>% filter(`GROUP (UC = CTRL group)` != "UC" & !is.na(risk))
+df_NAPLS_chr <- df_NAPLS_chr %>% mutate(
+  Transition = case_when(`GROUP (UC = CTRL group)` == "CHR-C" ~ 1, TRUE ~ 0),
+  Group = case_when(`GROUP (UC = CTRL group)` == "CHR-C" ~ "CHR-T", TRUE ~ "CHR-NT")
+)
 recal_model <- glm(Transition ~ PI_CHR, data = df_NAPLS_chr, family = binomial(link = "logit"))
 df_NAPLS_chr$recalibrated_probs <- predict(recal_model, type = "response")
 
@@ -652,7 +656,7 @@ ggplot(data = df_NAPLS_chr, aes(x = recalibrated_probs * 100, fill = Group)) +
   labs(x = "Risk (%)", y = "Frequency") +
   theme_classic() +
   theme(legend.position = "top")
-ggsave("Risk Histogram.png", width = 20, height = 22, scale = 0.5)
+ggsave("Risk Histogram 171025.png", width = 20, height = 22, scale = 0.5)
 
 ##### KM plot ######
 data_all <- rbind(data, df_NAPLS)
@@ -673,3 +677,16 @@ ggsurvplot(survfit(Surv(day_exit, Transition_status) ~ study, data = data_all),
 )
 dev.off()
 ggsave("KM.png", width = 42, height = 32, units = "cm", scale = 0.65)
+
+##### Correlation matrix ####
+library(corrplot)
+
+# Compute correlation matrix
+corr_matrix <- cor(data[, 2:6])
+testRes <- cor.mtest(data[, 2:6], conf.level = 0.95)
+
+# Draw the heatmap
+corrplot(corr_matrix,
+  method = "color", type = "upper", addCoef.col = "black",
+  tl.col = "black", tl.srt = 45, p.mat = testRes$p, sig.level = 0.10
+)
