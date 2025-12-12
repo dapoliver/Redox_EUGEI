@@ -35,7 +35,7 @@ summary(as.factor(data$Transition_status))
 
 # Define the predictor sets
 predictors <- list(
-  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
+  a = c("MIR9", "MIR34A", "MIR132", "MIR137", "MIR941")
 )
 
 # Create data frames to store predictions and coefficients
@@ -47,7 +47,7 @@ all_predictions <- data.frame(
 
 # Create 5-fold cross-validation with 5 repeats for outer folds
 
-outer_folds <- createMultiFolds(data$Transition_status, k = 5, times = 5)
+outer_folds <- createMultiFolds(data$Transition_status, k = 5, times = 10)
 
 temp_results <- data.frame(
   fold_num = numeric(),
@@ -317,7 +317,7 @@ results_new <- data.frame(
   )
 )
 
-write_csv(results_new, "CV_results_HC_mean_offset_171025.csv")
+write_csv(results_new, "CV_results_HC_mean_offset_121225.csv")
 
 ##### External Validation #####
 
@@ -480,7 +480,7 @@ results_NAPLS <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration$CalInt[1], 2), " (", round(logistic_calibration$CalInt_lower[1], 2), "-", round(logistic_calibration$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration$CalSlope[1], 2), " (", round(logistic_calibration$CalSlope_lower[1], 2), "-", round(logistic_calibration$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS, "external_validation_results_HC_mean_offset_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS, "external_validation_results_HC_mean_offset_121225.csv", row.names = FALSE)
 
 recal_model <- glm(Transition ~ PI_HC, data = df_NAPLS_hc, family = binomial(link = "logit"))
 recalibrated_probs <- predict(recal_model, type = "response")
@@ -534,4 +534,4 @@ results_NAPLS_recal <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration_recal$CalInt[1], 2), " (", round(logistic_calibration_recal$CalInt_lower[1], 2), "-", round(logistic_calibration_recal$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration_recal$CalSlope[1], 2), " (", round(logistic_calibration_recal$CalSlope_lower[1], 2), "-", round(logistic_calibration_recal$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_mean_offset_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_mean_offset_121225.csv", row.names = FALSE)

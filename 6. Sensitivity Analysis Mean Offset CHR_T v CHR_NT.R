@@ -38,7 +38,7 @@ summary(as.factor(data$Transition_status))
 
 # Define the predictor sets
 predictors <- list(
-  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
+  a = c("MIR9", "MIR34A", "MIR132", "MIR137", "MIR941")
 )
 
 # Create data frames to store predictions and coefficients
@@ -457,7 +457,7 @@ results_NAPLS <- data.frame(
   calibration_slope = paste0(round(logistic_calibration$CalSlope[1], 2), " (", round(logistic_calibration$CalSlope_lower[1], 2), "-", round(logistic_calibration$CalSlope_upper[1], 2), ")"),
   brier = paste0(round(logistic_calibration$BrierScore[1], 2), "(", round(logistic_calibration$Brier_lower[1], 2), "-", round(logistic_calibration$Brier_upper[1], 2), ")")
 )
-write.csv(results_NAPLS, "external_validation_results_mean_offset_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS, "external_validation_results_mean_offset_121225.csv", row.names = FALSE)
 
 recal_model <- glm(Transition ~ PI_CHR, data = df_NAPLS_chr, family = binomial(link = "logit"))
 recalibrated_probs <- predict(recal_model, type = "response")
@@ -511,4 +511,4 @@ results_NAPLS_recal <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration_recal$CalInt[1], 2), " (", round(logistic_calibration_recal$CalInt_lower[1], 2), "-", round(logistic_calibration_recal$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration_recal$CalSlope[1], 2), " (", round(logistic_calibration_recal$CalSlope_lower[1], 2), "-", round(logistic_calibration_recal$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS_recal, "external_validation_results_recal_mean_offset_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS_recal, "external_validation_results_recal_mean_offset_121225.csv", row.names = FALSE)

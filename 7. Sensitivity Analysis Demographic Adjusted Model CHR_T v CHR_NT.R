@@ -30,7 +30,7 @@ df_cc <- df_cc[complete.cases(df_cc), ]
 
 # Define the predictor sets
 predictors <- list(
-  "MIR132", "MIR34A", "MIR9", "MIR941", "MIR137"
+  "MIR9", "MIR34A", "MIR132", "MIR137", "MIR941"
 )
 
 # Residualize each predictor
@@ -215,7 +215,7 @@ results_new <- data.frame(
   calibration_slope = paste0(round(logistic_calibration$CalSlope[1], 2), " (", round(logistic_calibration$CalSlope_lower[1], 2), "-", round(logistic_calibration$CalSlope_upper[1], 2), ")")
 )
 
-write_csv(results_new, "CV_results_demo_171025.csv")
+write_csv(results_new, "CV_results_demo_121225.csv")
 
 ##### External Validation #####
 
@@ -286,7 +286,7 @@ df_NAPLS <- df_NAPLS[complete.cases(df_NAPLS), ]
 df_NAPLS_chr <- df_NAPLS %>% filter(`GROUP (UC = CTRL group)` != "UC")
 
 predictors <- list(
-  "MIR132", "MIR34A", "MIR9", "MIR941", "MIR137"
+  "MIR9", "MIR34A", "MIR132", "MIR137", "MIR941"
 )
 
 # Residualize each predictor

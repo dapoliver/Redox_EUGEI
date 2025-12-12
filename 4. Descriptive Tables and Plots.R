@@ -65,13 +65,13 @@ results_plot <- data.frame(
   ),
   C = c(
     0.933,
-    0.993,
+    1,
     0.908,
     0.868
   ),
   lCI = c(
     0.919,
-    0.976,
+    0.983,
     0.876,
     0.850
   ),
@@ -100,7 +100,7 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   geom_text(aes(x = 1.5, y = 0.85, label = "Excellent"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 1.5, y = 0.95, label = "Outstanding"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 0.75, y = 1.05, label = "0.93"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
-  geom_text(aes(x = 1.25, y = 1.05, label = "0.99"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.25, y = 1.05, label = "1.00"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
   geom_text(aes(x = 1.75, y = 1.05, label = "0.91"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
   geom_text(aes(x = 2.25, y = 1.05, label = "0.87"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
   geom_pointrange(data = results_plot, mapping = aes(x = Type, y = C, ymin = lCI, ymax = uCI, color = sample), size = 2, fatten = 2, position = position_dodge(width = 1)) +
@@ -111,7 +111,7 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   scale_y_continuous(breaks = seq(0.5, 1, by = 0.1)) +
   guides(color = guide_legend(title = "Sample")) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 21), legend.position = "right", legend.title = element_text(size = 23), legend.text = element_text(size = 23))
-ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/Figure 2 171025.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/Figure 2 111225.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ##### Univariate analyses #####
 

@@ -36,7 +36,7 @@ summary(as.factor(data$Transition_status))
 
 # Define the predictor sets
 predictors <- list(
-  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
+  a = c("MIR9", "MIR34A", "MIR132", "MIR137", "MIR941")
 )
 
 # Create data frames to store predictions and coefficients
@@ -160,12 +160,12 @@ predictions_data <- all_predictions %>% mutate(
   )
 ) # Recode True_Label to binary format
 
-# Initialize summary table for net benefits
-summary_table <- data.frame(
-  Threshold = numeric(),
-  Net_Benefit = numeric(),
-  stringsAsFactors = FALSE
-)
+dca_EUGEI <- dca(True_Label ~ Predicted_Probability,
+  data = predictions_data,
+  prevalence = 0.22,
+  thresholds = seq(0, 0.5, 0.01)
+) %>%
+  as_tibble()
 
 # Calibration analysis
 calibration <- data.frame(
@@ -238,12 +238,9 @@ results_new <- data.frame(
 write_csv(results_new, "CV_results_111025.csv")
 
 # Save calibration plot
-png(paste0("calibration_plot_171025.png"), width = 600, height = 500)
+png(paste0("calibration_plot_111225.png"), width = 600, height = 500)
 print(cal_plot_logistic(calibration, truth = observed, estimate = predicted, smooth = FALSE))
 dev.off()
-
-# Save calibration results
-write.csv(results, "calibration_results_111025.csv", row.names = FALSE)
 
 ##### External Validation #####
 
@@ -338,7 +335,9 @@ calibration <- calibration %>%
 # Fit logistic calibration
 logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = calibration$observed, Prob = calibration$predicted, cal_plot = FALSE)
 
+png(paste0("calibration_plot_NAPLS_111225.png"), width = 600, height = 500)
 cal_plot_breaks(calibration, truth = observed, estimate = predicted)
+dev.off()
 
 results_NAPLS <- data.frame(
   C = paste0(
@@ -392,7 +391,16 @@ calibration_recal <- calibration_recal %>%
   ungroup()
 logistic_calibration_recal <- predRupdate::pred_val_probs(binary_outcome = calibration_recal$observed, Prob = calibration_recal$predicted, cal_plot = FALSE)
 
+png(paste0("calibration_plot_NAPLS_recal_111225.png"), width = 600, height = 500)
 cal_plot_breaks(calibration_recal, truth = observed, estimate = predicted)
+dev.off()
+
+dca_NAPLS <- dca(observed ~ predicted,
+  data = calibration_recal,
+  prevalence = 0.22,
+  thresholds = seq(0, 0.5, 0.01)
+) %>%
+  as_tibble()
 
 results_NAPLS_recal <- data.frame(
   C = paste0(
@@ -417,7 +425,7 @@ results_NAPLS_recal <- data.frame(
   ),
   LR_pos = posLr(obs = observed, pred = predicted_labels_recal, pos_level = 1)$posLr,
   LR_neg = negLr(obs = observed, pred = predicted_labels_recal, pos_level = 1)$negLr,
-  brier = paste0(round(logistic_calibration_recal$BrierScore[1], 2), "(", round(logistic_calibration_recal$Brier_lower[1], 2), "-", round(logistic_calibration_recal$Brier_upper[1], 2), ")"),
+  brier = paste0(round(logistic_calibration_recal$BrierScore[1], 3), "(", round(logistic_calibration_recal$Brier_lower[1], 3), "-", round(logistic_calibration_recal$Brier_upper[1], 3), ")"),
   calibration_intercept = paste0(round(logistic_calibration_recal$CalInt[1], 2), " (", round(logistic_calibration_recal$CalInt_lower[1], 2), "-", round(logistic_calibration_recal$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration_recal$CalSlope[1], 2), " (", round(logistic_calibration_recal$CalSlope_lower[1], 2), "-", round(logistic_calibration_recal$CalSlope_upper[1], 2), ")")
 )
@@ -435,7 +443,7 @@ classification_chr <- data.frame(
   LR_neg = numeric()
 )
 
-for (i in seq(0.01, 1, by = 0.01)) {
+for (i in seq(0.01, 0.99, by = 0.01)) {
   predicted_labels <- ifelse(recalibrated_probs >= i, 1, 0)
   observed <- as.numeric(as.factor(df_NAPLS_chr$Transition)) - 1
   cm <- confusionMatrix(as.factor(predicted_labels), as.factor(observed), positive = "1")
@@ -466,7 +474,7 @@ ggplot(data = classification_chr, aes(x = threshold * 100)) +
   ) +
   theme_classic() +
   theme(text = element_text(family = "Roboto", face = "bold", size = 20))
-ggsave("likelihood_ratio_plot_171025.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("likelihood_ratio_plot_111225.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ggplot(data = classification_chr, aes(x = threshold * 100)) +
   geom_line(aes(y = ppv, color = "PPV"), size = 1.5) +
@@ -483,7 +491,7 @@ ggplot(data = classification_chr, aes(x = threshold * 100)) +
   theme_classic() +
   scale_y_continuous(limits = c(0, 1)) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 20))
-ggsave("ppv_npv_plot_171025.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("ppv_npv_plot_111225.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ggplot(data = classification_chr, aes(x = threshold * 100)) +
   geom_line(aes(y = specificity, color = "Specificity"), size = 1.5) +
@@ -500,18 +508,16 @@ ggplot(data = classification_chr, aes(x = threshold * 100)) +
   theme_classic() +
   scale_y_continuous(limits = c(0, 1)) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 20))
-ggsave("sens_spec_plot_171025.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("sens_spec_plot_111225.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ##### DCA summary #####
-dca <- read_csv("dca_summary_111025.csv")
+dca_all <- dca_EUGEI %>% filter(label != "Predicted_Probability")
+dca_EUGEI <- dca_EUGEI %>% filter(label == "Predicted_Probability")
 
-dca_all <- dca %>% filter(label != "pred")
-dca <- dca %>% filter(label == "pred")
+dca_EUGEI$variable <- "EUGEI"
+dca_EUGEI$label <- "EUGEI"
 
-dca$variable <- "EUGEI"
-dca$label <- "EUGEI"
-
-dca_all <- rbind(dca_all, dca)
+dca_all <- rbind(dca_all, dca_EUGEI)
 
 dca_recal_chr <- dca(observed ~ predicted,
   data = calibration_recal,
@@ -520,11 +526,11 @@ dca_recal_chr <- dca(observed ~ predicted,
 ) %>%
   as_tibble()
 
-dca_recal_chr <- dca_recal_chr %>% filter(label == "predicted")
-dca_recal_chr$label <- "NAPLS"
-dca_recal_chr$variable <- "NAPLS"
+dca_NAPLS <- dca_NAPLS %>% filter(label == "predicted")
+dca_NAPLS$label <- "NAPLS"
+dca_NAPLS$variable <- "NAPLS"
 
-dca_all <- rbind(dca_all, dca_recal_chr)
+dca_all <- rbind(dca_all, dca_NAPLS)
 summary_table <- dca_all %>% subset(select = c(variable, threshold, net_benefit))
 summary_table_wide <- summary_table %>%
   pivot_wider(names_from = variable, values_from = net_benefit)
@@ -540,7 +546,7 @@ summary_table_wide <- summary_table_wide %>% mutate(
   ),
   NAPLS_snb = NAPLS / 0.22
 )
-write.csv(summary_table_wide, "net_benefit_summary_table_111025.csv", row.names = FALSE)
+write.csv(summary_table_wide, "net_benefit_summary_table_111225.csv", row.names = FALSE)
 
 dca_all$label <- factor(dca_all$label, levels = c("Treat All", "Treat None", "EUGEI", "NAPLS"))
 ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
@@ -551,4 +557,4 @@ ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
   scale_color_manual(labels = c("Treat All", "Treat None", "EU-GEI", "NAPLS-3"), values = c("gray80", "#000000", "#599ec4", "#c8526a")) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 40), legend.title = element_text(size = 23), legend.text = element_text(size = 23)) +
   theme_classic()
-ggsave("dca_all_summary_171025.png", width = 20, height = 15, scale = 0.3)
+ggsave("dca_all_summary_111225.png", width = 20, height = 15, scale = 0.3)

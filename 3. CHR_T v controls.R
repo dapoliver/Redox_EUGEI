@@ -32,11 +32,11 @@ summary(as.factor(data$Transition_status))
 
 # Define the predictor sets
 predictors <- list(
-  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
+  a = c("MIR9", "MIR34A", "MIR132", "MIR137", "MIR941")
 )
 
 # Create data frames to store predictions and coefficients
-all_predictions <- data.frame(
+predictions_data <- data.frame(
   Subject_ID = integer(), True_Label = integer(),
   Predicted_Probability = numeric(),
   Fold = integer(), Repeat = integer(), stringsAsFactors = FALSE
@@ -103,11 +103,18 @@ for (fold_num in seq_along(outer_folds)) {
     LR_neg = negLr(obs = observed, pred = predicted_labels, pos_level = 1)$negLr
   ))
   # Save predictions
-  all_predictions <- rbind(all_predictions, data.frame(
+  predictions_data <- rbind(predictions_data, data.frame(
     Subject_ID = test_idx, True_Label = y[test_idx], Predicted_Probability = predictions,
     Fold = fold_num, Repeat = NA
   ))
 }
+
+dca_EUGEI <- dca(True_Label ~ Predicted_Probability,
+  data = predictions_data,
+  prevalence = 0.000266,
+  thresholds = seq(0, 0.5, 0.01)
+) %>%
+  as_tibble()
 
 temp_results <- temp_results %>% mutate(LR_pos = case_when(
   is.infinite(LR_pos) ~ NA,
@@ -354,7 +361,7 @@ results_NAPLS <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration$CalInt[1], 2), " (", round(logistic_calibration$CalInt_lower[1], 2), "-", round(logistic_calibration$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration$CalSlope[1], 2), " (", round(logistic_calibration$CalSlope_lower[1], 2), "-", round(logistic_calibration$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS, "external_validation_results_HC_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS, "external_validation_results_HC_121225.csv", row.names = FALSE)
 
 recal_model <- glm(Transition ~ PI_HC, data = df_NAPLS_hc, family = binomial(link = "logit"))
 recalibrated_probs <- predict(recal_model, type = "response")
@@ -408,52 +415,35 @@ results_NAPLS_recal <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration_recal$CalInt[1], 2), " (", round(logistic_calibration_recal$CalInt_lower[1], 2), "-", round(logistic_calibration_recal$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration_recal$CalSlope[1], 2), " (", round(logistic_calibration_recal$CalSlope_lower[1], 2), "-", round(logistic_calibration_recal$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_121225.csv", row.names = FALSE)
 
 ##### DCA #####
-dca <- data.frame(
-  obs = as.numeric(as.factor(averaged_data$observed)) - 1, # Already binary
-  pred = averaged_data$predicted
-)
+dca_all <- dca_EUGEI %>%
+  filter(label != "Predicted_Probability") %>%
+  as.data.frame()
+dca_EUGEI <- dca_EUGEI %>%
+  filter(label == "Predicted_Probability") %>%
+  as.data.frame()
 
-dca_assessment <- dca(obs ~ pred,
-  data = dca,
-  prevalence = 0.000266, # (0.017*0.22),
-  thresholds = seq(0, 0.5, 0.01)
-) %>%
-  as_tibble()
+dca_EUGEI$variable <- "EUGEI"
+dca_EUGEI$label <- "EUGEI"
 
-# Summarize net benefit
-dca_assessment <- dca_assessment %>%
-  group_by(variable, label, threshold)
+dca_all <- rbind(dca_all, dca_EUGEI)
 
-write.csv(dca_assessment, paste0("dca_summary_hc_171025.csv"), row.names = FALSE)
-
-# Save summary table for net benefits
-write.csv(summary_table, "net_benefit_summary_table_HC_171025.csv", row.names = FALSE)
-
-dca <- read_csv("dca_summary_hc_171025.csv")
-
-dca_all <- dca %>% filter(label != "pred")
-dca <- dca %>% filter(label == "pred")
-
-dca$variable <- "EUGEI"
-dca$label <- "EUGEI"
-
-dca_all <- rbind(dca_all, dca)
-
-dca_recal_hc <- dca(observed ~ predicted,
+dca_NAPLS <- dca(observed ~ predicted,
   data = calibration_recal,
   prevalence = 0.000266,
   thresholds = seq(0, 0.5, 0.01)
 ) %>%
-  as_tibble()
+  as_tibble() %>%
+  as.data.frame()
 
-dca_recal_hc <- dca_recal_hc %>% filter(label == "predicted")
-dca_recal_hc$label <- "NAPLS"
-dca_recal_hc$variable <- "NAPLS"
+dca_NAPLS <- dca_NAPLS %>% filter(label == "predicted")
+dca_NAPLS$label <- "NAPLS"
+dca_NAPLS$variable <- "NAPLS"
 
-dca_all <- rbind(dca_all, dca_recal_hc)
+dca_all <- rbind(dca_all, dca_NAPLS)
+
 summary_table <- dca_all %>% subset(select = c(variable, threshold, net_benefit))
 summary_table_wide <- summary_table %>%
   pivot_wider(names_from = variable, values_from = net_benefit)
@@ -462,14 +452,17 @@ summary_table_wide <- summary_table_wide %>% mutate(
     all > 0 ~ EUGEI - all,
     TRUE ~ EUGEI
   ),
-  EUGEI_snb = EUGEI / 0.000266,
+  EUGEI_snb = EUGEI / 0.22,
   NAPLS = case_when(
     all > 0 ~ NAPLS - all,
     TRUE ~ NAPLS
   ),
-  NAPLS_snb = NAPLS / 0.000266
+  NAPLS_snb = NAPLS / 0.22
 )
-write.csv(summary_table_wide, "net_benefit_summary_table_hc_171025.csv", row.names = FALSE)
+write.csv(dca_all, paste0("dca_summary_hc_121225.csv"), row.names = FALSE)
+
+# Save summary table for net benefits
+write.csv(summary_table, "net_benefit_summary_table_HC_121225.csv", row.names = FALSE)
 
 dca_all$label <- factor(dca_all$label, levels = c("Treat All", "Treat None", "EUGEI", "NAPLS"))
 ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
@@ -480,4 +473,4 @@ ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
   scale_color_manual(labels = c("Treat All", "Treat None", "EU-GEI", "NAPLS-3"), values = c("gray80", "#000000", "#599ec4", "#c8526a")) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 40), legend.title = element_text(size = 23), legend.text = element_text(size = 23)) +
   theme_classic()
-ggsave("dca_all_summary_hc_171025.png", width = 20, height = 15, scale = 0.3)
+ggsave("dca_all_summary_hc_121225.png", width = 20, height = 15, scale = 0.3)

@@ -26,7 +26,7 @@ df_cc <- df_cc[complete.cases(df_cc), ]
 
 # Define the predictor sets
 predictors <- list(
-  "MIR132", "MIR34A", "MIR9", "MIR941", "MIR137"
+  "MIR9", "MIR34A", "MIR132", "MIR137", "MIR941"
 )
 
 # Residualize each predictor
@@ -46,11 +46,6 @@ data$Transition_status <- as.factor((as.character(data$Transition_status)))
 levels(data$Transition_status) <- c("Ctrl", "T")
 
 summary(as.factor(data$Transition_status))
-
-# Define the predictor sets
-predictors <- list(
-  a = c("MIR132", "MIR34A", "MIR9", "MIR941", "MIR137")
-)
 
 # Create data frames to store predictions and coefficients
 all_predictions <- data.frame(
@@ -236,7 +231,7 @@ results_new <- data.frame(
   )
 )
 
-write_csv(results_new, "CV_results_HC_demo_171025.csv")
+write_csv(results_new, "CV_results_HC_demo_122325.csv")
 
 ##### External Validation #####
 
@@ -308,7 +303,7 @@ df_NAPLS <- df_NAPLS[complete.cases(df_NAPLS), ]
 df_NAPLS_hc <- df_NAPLS %>% filter(`GROUP (UC = CTRL group)` != "CHR-NC")
 
 predictors <- list(
-  "MIR132", "MIR34A", "MIR9", "MIR941", "MIR137"
+  "MIR9", "MIR34A", "MIR132", "MIR137", "MIR941"
 )
 
 # Residualize each predictor
@@ -372,7 +367,7 @@ results_NAPLS <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration$CalInt[1], 2), " (", round(logistic_calibration$CalInt_lower[1], 2), "-", round(logistic_calibration$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration$CalSlope[1], 2), " (", round(logistic_calibration$CalSlope_lower[1], 2), "-", round(logistic_calibration$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS, "external_validation_results_HC_demo_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS, "external_validation_results_HC_demo_121225.csv", row.names = FALSE)
 
 recal_model <- glm(Transition ~ PI_HC, data = df_NAPLS_hc, family = binomial(link = "logit"))
 recalibrated_probs <- predict(recal_model, type = "response")
@@ -426,4 +421,4 @@ results_NAPLS_recal <- data.frame(
   calibration_intercept = paste0(round(logistic_calibration_recal$CalInt[1], 2), " (", round(logistic_calibration_recal$CalInt_lower[1], 2), "-", round(logistic_calibration_recal$CalInt_upper[1], 2), ")"),
   calibration_slope = paste0(round(logistic_calibration_recal$CalSlope[1], 2), " (", round(logistic_calibration_recal$CalSlope_lower[1], 2), "-", round(logistic_calibration_recal$CalSlope_upper[1], 2), ")")
 )
-write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_demo_171025.csv", row.names = FALSE)
+write.csv(results_NAPLS_recal, "external_validation_results_recal_HC_demo_121225.csv", row.names = FALSE)
