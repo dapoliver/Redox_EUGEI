@@ -462,7 +462,7 @@ summary_table_wide <- summary_table_wide %>% mutate(
 write.csv(dca_all, paste0("dca_summary_hc_121225.csv"), row.names = FALSE)
 
 # Save summary table for net benefits
-write.csv(summary_table, "net_benefit_summary_table_HC_121225.csv", row.names = FALSE)
+write.csv(summary_table_wide, "net_benefit_summary_table_HC_121225.csv", row.names = FALSE)
 
 dca_all$label <- factor(dca_all$label, levels = c("Treat All", "Treat None", "EUGEI", "NAPLS"))
 ggplot(data = dca_all, aes(x = threshold, y = net_benefit, color = label)) +
