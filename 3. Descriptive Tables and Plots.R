@@ -21,6 +21,7 @@ library(Hmisc)
 library(readxl)
 library(rstatix)
 library(gtsummary)
+library(neuroCombat)
 
 # df <- read_csv("data_survival.csv")
 df <- read_excel("Eugei vf 0810 final BATCH 091025.xlsx")
@@ -64,22 +65,22 @@ results_plot <- data.frame(
     "NAPLS-3"
   ),
   C = c(
-    0.933,
-    1,
-    0.908,
-    0.868
+    0.977,
+    0.725,
+    0.905,
+    0.637
   ),
   lCI = c(
-    0.919,
-    0.983,
-    0.876,
-    0.850
+    0.954,
+    0.624,
+    0.841,
+    0.514
   ),
   uCI = c(
-    0.947,
-    1,
-    0.940,
-    0.887
+    0.995,
+    0.818,
+    0.960,
+    0.749
   )
 )
 results_plot$Type <- factor(results_plot$Type, levels = c("CHR-T v CHR-NT", "CHR-T v Controls"))
@@ -87,11 +88,11 @@ results_plot$sample <- factor(results_plot$sample, levels = c("EU-GEI", "NAPLS-3
 
 ggplot(data = results_plot, aes(x = Type, group = sample)) +
   geom_rect(
-    data = results_plot, aes(), xmin = 0, xmax = 9.5, ymin = 0.5, ymax = 0.7,
+    data = results_plot, aes(), xmin = 0.5, xmax = 2.5, ymin = 0.5, ymax = 0.7,
     fill = "gray92"
   ) +
   geom_rect(
-    data = results_plot, aes(), xmin = 0, xmax = 9.5, ymin = 0.8, ymax = 0.9,
+    data = results_plot, aes(), xmin = 0.5, xmax = 2.5, ymin = 0.8, ymax = 0.9,
     fill = "gray92"
   ) +
   geom_text(aes(x = 1.5, y = 0.6, label = "Above chance"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
@@ -99,10 +100,10 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   geom_text(aes(x = 1.5, y = 0.75, label = "Acceptable"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 1.5, y = 0.85, label = "Excellent"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
   geom_text(aes(x = 1.5, y = 0.95, label = "Outstanding"), stat = "unique", size = 8, color = "gray80", family = "Roboto Condensed") +
-  geom_text(aes(x = 0.75, y = 1.05, label = "0.93"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
-  geom_text(aes(x = 1.25, y = 1.05, label = "1.00"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 0.75, y = 1.05, label = "0.98"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
+  geom_text(aes(x = 1.25, y = 1.05, label = "0.73"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
   geom_text(aes(x = 1.75, y = 1.05, label = "0.91"), stat = "unique", size = 8, color = "#599ec4", family = "Roboto Condensed") +
-  geom_text(aes(x = 2.25, y = 1.05, label = "0.87"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
+  geom_text(aes(x = 2.25, y = 1.05, label = "0.64"), stat = "unique", size = 8, color = "#c8526a", family = "Roboto Condensed") +
   geom_pointrange(data = results_plot, mapping = aes(x = Type, y = C, ymin = lCI, ymax = uCI, color = sample), size = 2, fatten = 2, position = position_dodge(width = 1)) +
   scale_color_manual(values = c("#599ec4", "#c8526a")) +
   theme_classic() +
@@ -111,17 +112,65 @@ ggplot(data = results_plot, aes(x = Type, group = sample)) +
   scale_y_continuous(breaks = seq(0.5, 1, by = 0.1)) +
   guides(color = guide_legend(title = "Sample")) +
   theme(text = element_text(family = "Roboto", face = "bold", size = 21), legend.position = "right", legend.title = element_text(size = 23), legend.text = element_text(size = 23))
-ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/Figure 2 111225.png", width = 42, height = 32, units = "cm", scale = 0.65)
+ggsave("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/Redox EU-GEI/Figure 2 220326.png", width = 42, height = 32, units = "cm", scale = 0.65)
 
 ##### Univariate analyses #####
 
 df_cc <- df_chr %>%
-  subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137))
+  subset(select = c(Group, MIR132, MIR34A, MIR9, MIR941, MIR137, `BATCH NUMB`, site))
 df_cc <- df_cc[complete.cases(df_cc), ]
 # df_cc <- df_cc %>% filter(MIR137 < 75)
 
 data <- df_cc
 data$study <- "EU-GEI"
+
+predictors <- list(
+  a = c("MIR9", "MIR34A", "MIR132", "MIR137", "MIR941")
+)
+combat <- neuroCombat(dat = t(df_cc[, predictors[[1]]]), batch = df_cc$`BATCH NUMB`, mod = NULL)
+df_cc[, predictors[[1]]] <- t(combat$dat.combat)
+
+### Mean offset correction ###
+batch_train <- as.factor(df_cc$site)
+df_cc_corrected <- df_cc # Start with the original data
+
+### Compute Global Means ###
+global_mean <- colMeans(df_cc[, predictors[[1]], drop = FALSE], na.rm = TRUE)
+# Iterate over each batch
+for (b in levels(batch_train)) {
+  batch_indices <- which(batch_train == b) # Indices for samples in batch `b`
+
+  if (length(batch_indices) == 0) {
+    warning(paste("Batch", b, "is empty. Skipping."))
+    next
+  }
+
+  # Extract the subset of test for the current batch
+  batch_data <- df_cc[batch_indices, predictors[[1]], drop = FALSE]
+
+  # Compute row-wise means for this batch
+  batch_mean <- colMeans(batch_data, na.rm = TRUE)
+
+  # Compute the offset: batch mean - global mean
+  offset <- batch_mean - global_mean
+
+  if (length(batch_mean) == 0) {
+    warning(paste("Batch", b, "has no valid data for mean computation. Skipping."))
+    next
+  }
+
+  # Subtract batch means
+  df_cc_corrected[batch_indices, predictors[[1]]] <- sweep(
+    batch_data,
+    1,
+    offset,
+    "-"
+  )
+  cat("Processed batch", b, "\n")
+}
+
+# Back-transform
+df_cc <- df_cc_corrected
 
 shapiro.test(df_cc$MIR9)
 shapiro.test(df_cc$MIR34A)
@@ -195,7 +244,7 @@ univ.summary <- data.frame(
 )
 
 univ.summary$p.value <- p.adjust(univ.summary$p.value, method = "BH")
-write_csv(univ.summary, "univariate_summary_EUGEI_111025.csv")
+write_csv(univ.summary, "Results/univariate_summary_EUGEI_22035.csv")
 
 wilcox.test(MIR9 ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_Trans", "AtRisk_NoTr"), ])
 wilcox.test(MIR34A ~ Group, data = df_cc[df_cc$Group %in% c("AtRisk_Trans", "AtRisk_NoTr"), ])
@@ -293,9 +342,9 @@ df_NAPLS <- df_NAPLS %>%
       TRUE ~ "Other"
     )
   ) %>%
-  rename(MIR9 = `miR-9`, MIR34A = `miR-34`, MIR132 = `miR-132`, MIR137 = `miR-137`, MIR941 = `miR-941`, day_exit = fudays) %>%
+  rename(MIR9 = `miR-9`, MIR34A = `miR-34`, MIR132 = `miR-132`, MIR137 = `miR-137`, MIR941 = `miR-941`, day_exit = fudays, batch = BATCH) %>%
   subset(select = c(
-    MIR9, MIR34A, MIR132, MIR137, MIR941, Group, demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction, day_exit
+    MIR9, MIR34A, MIR132, MIR137, MIR941, Group, batch, demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction, day_exit
   ))
 
 tbl_NAPLS <- tbl_summary(
@@ -311,6 +360,52 @@ tbl_NAPLS <- tbl_summary(
     all_categorical() ~ c(0, 1)
   )
 )
+
+df_NAPLS <- df_NAPLS %>% filter(!is.na(MIR9) & !is.na(MIR34A) & !is.na(MIR132) & !is.na(MIR137) & !is.na(MIR941))
+combat <- neuroCombat(dat = t(df_NAPLS[, predictors[[1]]]), batch = df_NAPLS$batch, mod = NULL)
+df_NAPLS[, predictors[[1]]] <- t(combat$dat.combat)
+
+### Mean offset correction ###
+batch_train <- as.factor(df_NAPLS$site)
+df_NAPLS_corrected <- df_NAPLS # Start with the original data
+
+### Compute Global Means ###
+global_mean <- colMeans(df_NAPLS[, predictors[[1]], drop = FALSE], na.rm = TRUE)
+# Iterate over each batch
+for (b in levels(batch_train)) {
+  batch_indices <- which(batch_train == b) # Indices for samples in batch `b`
+
+  if (length(batch_indices) == 0) {
+    warning(paste("Batch", b, "is empty. Skipping."))
+    next
+  }
+
+  # Extract the subset of test for the current batch
+  batch_data <- df_NAPLS[batch_indices, predictors[[1]], drop = FALSE]
+
+  # Compute row-wise means for this batch
+  batch_mean <- colMeans(batch_data, na.rm = TRUE)
+
+  # Compute the offset: batch mean - global mean
+  offset <- batch_mean - global_mean
+
+  if (length(batch_mean) == 0) {
+    warning(paste("Batch", b, "has no valid data for mean computation. Skipping."))
+    next
+  }
+
+  # Subtract batch means
+  df_NAPLS_corrected[batch_indices, predictors[[1]]] <- sweep(
+    batch_data,
+    1,
+    offset,
+    "-"
+  )
+  cat("Processed batch", b, "\n")
+}
+
+# Back-transform
+df_NAPLS <- df_NAPLS_corrected
 
 shapiro.test(df_NAPLS$MIR9)
 shapiro.test(df_NAPLS$MIR34A)
@@ -384,8 +479,8 @@ univ.summary_NAPLS <- data.frame(
   )
 )
 
-univ.summary$p.value <- p.adjust(univ.summary$p.value, method = "BH")
-write_csv(univ.summary, "univariate_summary_NAPLS.csv")
+univ.summary_NAPLS$p.value <- p.adjust(univ.summary_NAPLS$p.value, method = "BH")
+write_csv(univ.summary_NAPLS, "Results/univariate_summary_NAPLS_220326.csv")
 
 ##### Descriptive Figures #####
 
@@ -400,16 +495,16 @@ MIR_9_plot <- ggplot(aes(x = Group, y = MIR9, fill = study, colour = study), dat
       position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
-  geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
-    colour = "black",
-    annotations = c("***", "***"),
-    tip_length = 0.02
-  ) +
+  # geom_signif(
+  #   comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
+  #   colour = "black",
+  #   annotations = c("***", "**"),
+  #   tip_length = 0.02
+  # ) +
   theme_classic() +
   scale_color_manual(values = c("#599ec4", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#599ec4", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-9", limits = c(0, max(data$MIR9, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-9", limits = c(min(data$MIR9, na.rm = TRUE), max(data$MIR9, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -422,15 +517,15 @@ MIR_34A_plot <- ggplot(aes(x = Group, y = MIR34A, fill = study, colour = study),
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
+    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("***", "***", "*"),
     tip_length = 0.02
   ) +
   theme_classic() +
   scale_color_manual(values = c("#599ec4", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#599ec4", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-34a", limits = c(0, max(data$MIR34A, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-34a", limits = c(min(data$MIR34A, na.rm = TRUE), max(data$MIR34A, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -443,9 +538,9 @@ MIR_132_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = study),
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
+    comparisons = list(c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("*", "***"),
     tip_length = 0.02,
     y_position = c(
       max(data$MIR132, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -455,7 +550,7 @@ MIR_132_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = study),
   theme_classic() +
   scale_color_manual(values = c("#599ec4", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#599ec4", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-132", limits = c(0, max(data$MIR132, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-132", limits = c(min(data$MIR132, na.rm = TRUE), max(data$MIR132, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -467,20 +562,20 @@ MIR_137_plot <- ggplot(aes(x = Group, y = MIR137, fill = study, colour = study),
       position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
-  geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
-    colour = "black",
-    annotations = c("***", "***"),
-    tip_length = 0.02,
-    y_position = c(
-      max(data$MIR137, na.rm = TRUE) * 1.05, # First significance bar slightly above max
-      max(data$MIR137, na.rm = TRUE) * 1.15
-    )
-  ) +
+  # geom_signif(
+  #   comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
+  #   colour = "black",
+  #   annotations = c("***", "***"),
+  #   tip_length = 0.02,
+  #   y_position = c(
+  #     max(data$MIR137, na.rm = TRUE) * 1.05, # First significance bar slightly above max
+  #     max(data$MIR137, na.rm = TRUE) * 1.15
+  #   )
+  # ) +
   theme_classic() +
   scale_color_manual(values = c("#599ec4", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#599ec4", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-137", limits = c(0, max(data$MIR137, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-137", limits = c(min(data$MIR137, na.rm = TRUE), max(data$MIR137, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -495,7 +590,7 @@ MIR_941_plot <- ggplot(aes(x = Group, y = MIR941, fill = study, colour = study),
   geom_signif(
     comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("**", "***"),
     tip_length = 0.02,
     y_position = c(
       max(data$MIR941, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -505,7 +600,7 @@ MIR_941_plot <- ggplot(aes(x = Group, y = MIR941, fill = study, colour = study),
   theme_classic() +
   scale_color_manual(values = c("#599ec4", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#599ec4", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-941", limits = c(0, max(data$MIR941, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-941", limits = c(min(data$MIR941, na.rm = TRUE), max(data$MIR941, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -518,15 +613,15 @@ MIR_9_NAPLS_plot <- ggplot(aes(x = Group, y = MIR9, fill = study, colour = study
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
+    comparisons = list(c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "**"),
+    annotations = c("*"),
     tip_length = 0.02
   ) +
   theme_classic() +
   scale_color_manual(values = c("#c8526a", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#c8526a", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-9", limits = c(0, max(df_NAPLS$MIR9, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-9", limits = c(min(df_NAPLS$MIR9, na.rm = TRUE), max(df_NAPLS$MIR9, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -538,16 +633,16 @@ MIR_34A_NAPLS_plot <- ggplot(aes(x = Group, y = MIR34A, fill = study, colour = s
       position = ggpp::position_dodgenudge(x = .15, width = 0.2), width = 0.15
     )
   ) +
-  geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control")),
-    colour = "black",
-    annotations = c("***", "***"),
-    tip_length = 0.02
-  ) +
+  # geom_signif(
+  #   comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
+  #   colour = "black",
+  #   annotations = c("***", "***", "*"),
+  #   tip_length = 0.02
+  # ) +
   theme_classic() +
   scale_color_manual(values = c("#c8526a", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#c8526a", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-34a", limits = c(0, max(df_NAPLS$MIR34A, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-34a", limits = c(min(df_NAPLS$MIR34A, na.rm = TRUE), max(df_NAPLS$MIR34A, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -560,9 +655,9 @@ MIR_132_NAPLS_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = s
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
+    comparisons = list(c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "*", "***"),
+    annotations = c("*", "***", "***"),
     tip_length = 0.02,
     y_position = c(
       max(df_NAPLS$MIR132, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -573,7 +668,7 @@ MIR_132_NAPLS_plot <- ggplot(aes(x = Group, y = MIR132, fill = study, colour = s
   theme_classic() +
   scale_color_manual(values = c("#c8526a", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#c8526a", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-132", limits = c(0, max(df_NAPLS$MIR132, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-132", limits = c(min(df_NAPLS$MIR132, na.rm = TRUE), max(df_NAPLS$MIR132, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -585,20 +680,20 @@ MIR_137_NAPLS_plot <- ggplot(aes(x = Group, y = MIR137, fill = study, colour = s
       position = ggpp::position_dodgenudge(x = 0.15, width = 0.2), width = 0.15
     )
   ) +
-  geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "Control"), c("AtRisk_Trans", "Control")),
-    colour = "black",
-    annotations = c("**", "***"),
-    tip_length = 0.02,
-    y_position = c(
-      max(df_NAPLS$MIR137, na.rm = TRUE) * 1.15, # First significance bar slightly above max
-      max(df_NAPLS$MIR137, na.rm = TRUE) * 1.05
-    )
-  ) +
+  # geom_signif(
+  #   comparisons = list(c("AtRisk_NoTr", "Control"), c("AtRisk_Trans", "Control")),
+  #   colour = "black",
+  #   annotations = c("**", "***"),
+  #   tip_length = 0.02,
+  #   y_position = c(
+  #     max(df_NAPLS$MIR137, na.rm = TRUE) * 1.15, # First significance bar slightly above max
+  #     max(df_NAPLS$MIR137, na.rm = TRUE) * 1.05
+  #   )
+  # ) +
   theme_classic() +
   scale_color_manual(values = c("#c8526a", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#c8526a", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-137", limits = c(0, max(df_NAPLS$MIR137, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-137", limits = c(min(df_NAPLS$MIR137, na.rm = TRUE), max(df_NAPLS$MIR137, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -611,9 +706,9 @@ MIR_941_NAPLS_plot <- ggplot(aes(x = Group, y = MIR941, fill = study, colour = s
     )
   ) +
   geom_signif(
-    comparisons = list(c("AtRisk_NoTr", "AtRisk_Trans"), c("AtRisk_NoTr", "Control")),
+    comparisons = list(c("AtRisk_Trans", "Control"), c("AtRisk_NoTr", "Control")),
     colour = "black",
-    annotations = c("***", "***"),
+    annotations = c("***", "*"),
     tip_length = 0.02,
     y_position = c(
       max(df_NAPLS$MIR941, na.rm = TRUE) * 1.05, # First significance bar slightly above max
@@ -623,7 +718,7 @@ MIR_941_NAPLS_plot <- ggplot(aes(x = Group, y = MIR941, fill = study, colour = s
   theme_classic() +
   scale_color_manual(values = c("#c8526a", "#c8526a", "gray80")) +
   scale_fill_manual(values = c("#c8526a", "#c8526a", "gray80")) +
-  scale_y_continuous(name = "MIR-941", limits = c(0, max(df_NAPLS$MIR941, na.rm = TRUE) * 1.25)) +
+  scale_y_continuous(name = "MIR-941", limits = c(min(df_NAPLS$MIR941, na.rm = TRUE), max(df_NAPLS$MIR941, na.rm = TRUE) * 1.25)) +
   scale_x_discrete(labels = c("CHR-NT", "CHR-T", "Controls")) +
   guides(fill = "none", color = "none")
 
@@ -634,10 +729,10 @@ combined_plot <- ggarrange(
   MIR_132_NAPLS_plot, MIR_137_NAPLS_plot, MIR_941_NAPLS_plot, # NULL for the empty spot
   ncol = 3, nrow = 4
 )
-ggsave("Figure 4 wide 171025.png", combined_plot, width = 20, height = 22, scale = 0.5)
+ggsave("Results/Figure 4 wide 220326.png", combined_plot, width = 20, height = 22, scale = 0.5)
 
 ##### Descriptive PI plots #####
-df_NAPLS <- df_NAPLS %>% mutate(PI_CHR = -1.4588309 + (-0.7308739 * MIR9) + (1.02934979 * MIR34A) + (-0.2071588 * MIR132) + (0 * MIR137) + (-1.1861267 * MIR941))
+df_NAPLS <- df_NAPLS %>% mutate(PI_CHR = -2.2430331 + (-0.2041653 * MIR9) + (0.65603337 * MIR34A) + (-0.1989363 * MIR132) + (-0.0079757 * MIR137) + (-0.4099294 * MIR941))
 df_NAPLS$risk <- 1 / (1 + exp(-df_NAPLS$PI_CHR))
 df_NAPLS_chr <- df_NAPLS %>% filter(`GROUP (UC = CTRL group)` != "UC" & !is.na(risk))
 df_NAPLS_chr <- df_NAPLS_chr %>% mutate(
@@ -656,7 +751,7 @@ ggplot(data = df_NAPLS_chr, aes(x = recalibrated_probs * 100, fill = Group)) +
   labs(x = "Risk (%)", y = "Frequency") +
   theme_classic() +
   theme(legend.position = "top")
-ggsave("Risk Histogram 171025.png", width = 20, height = 22, scale = 0.5)
+ggsave("Results/Risk Histogram 220326.png", width = 20, height = 22, scale = 0.5)
 
 ##### KM plot ######
 data_all <- rbind(data, df_NAPLS)
