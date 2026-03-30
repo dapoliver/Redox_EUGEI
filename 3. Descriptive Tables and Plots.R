@@ -24,23 +24,25 @@ library(gtsummary)
 library(neuroCombat)
 
 # df <- read_csv("data_survival.csv")
-df <- read_excel("Eugei vf 0810 final BATCH 091025.xlsx")
+df <- read_excel("Eugei vf 0810 final BATCH 091025CAARMS-GAF.xlsx")
 clinical <- read.csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/PPS EU-GEI/Databases/PPS_processed.csv")
+df <- df %>% rename(Group = GROUP, st_subjid = `id-st_subjid...2`)
 
 ##### Table 1 #####
 
 df_chr <- df
 df_chr <- merge(df_chr, clinical, by.x = "st_subjid", by.y = "ID", all.x = TRUE)
-df_chr$GAF <- rowMeans(df_chr[, c("gafex01", "gafex02")], na.rm = TRUE)
+df_chr$GAF <- rowMeans(df_chr[, c("gafex01.x", "gafex02.x")], na.rm = TRUE)
 
 df_chr <- df_chr %>% dplyr::rename(Gender = Gender.x)
 df_chr <- df_chr %>% filter(!is.na(MIR132))
 
 tbl <- tbl_summary(
-  include = c(Age, Gender, Ethnicity, CAARMS, GAF), data = df_chr, by = Group,
+  include = c(Age, Gender, Ethnicity, BMI, CAARMS.x, GAF), data = df_chr, by = Group,
   type = list(
     Age ~ "continuous2",
-    CAARMS ~ "continuous2",
+    BMI ~ "continous2",
+    CAARMS.x ~ "continuous2",
     GAF ~ "continuous2"
   ),
   statistic = list(all_continuous() ~ c("{mean}", "{sd}")),
@@ -340,18 +342,20 @@ df_NAPLS <- df_NAPLS %>%
       demo_racial == "East Asian" | demo_racial == "South Asian" ~ "Asian",
       demo_racial == "Interracial" ~ "Mixed",
       TRUE ~ "Other"
-    )
+    ),
+    BMI = as.numeric(BMI)
   ) %>%
   rename(MIR9 = `miR-9`, MIR34A = `miR-34`, MIR132 = `miR-132`, MIR137 = `miR-137`, MIR941 = `miR-941`, day_exit = fudays, batch = BATCH) %>%
   subset(select = c(
-    MIR9, MIR34A, MIR132, MIR137, MIR941, Group, batch, demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction, day_exit
+    MIR9, MIR34A, MIR132, MIR137, MIR941, Group, batch, demo_age_ym, demo_sex, Ethnicity, BMI, CAARMS, GlobalAssessmentFunction, day_exit
   ))
 
 tbl_NAPLS <- tbl_summary(
-  include = c(demo_age_ym, demo_sex, Ethnicity, CAARMS, GlobalAssessmentFunction), data = df_NAPLS, by = Group,
+  include = c(demo_age_ym, demo_sex, Ethnicity, CAARMS, BMI, GlobalAssessmentFunction), data = df_NAPLS, by = Group,
   type = list(
     demo_age_ym ~ "continuous2",
     CAARMS ~ "continuous2",
+    BMI ~ "continuous2",
     GlobalAssessmentFunction ~ "continuous2"
   ),
   statistic = list(all_continuous() ~ c("{mean}", "{sd}")),

@@ -20,14 +20,17 @@ library(survminer)
 library(predRupdate)
 library(metrica)
 
-set.seed(123)
-df <- read_excel("Eugei vf 0810 final BATCH 091025.xlsx")
+df <- read_excel("Eugei vf 0810 final BATCH 091025CAARMS-GAF.xlsx")
 clinical <- read.csv("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Papers/Submitted/PPS EU-GEI/Databases/PPS_processed.csv")
+df <- df %>% rename(Group = GROUP, st_subjid = `id-st_subjid...2`)
+
+df_chr <- df %>% filter(Group != "Control")
+df_chr <- merge(df_chr, clinical, by.x = "st_subjid", by.y = "ID", all.x = TRUE)
 
 df_chr <- df %>% filter(Group != "AtRisk_NoTr")
 df_chr <- merge(df_chr, clinical, by.x = "st_subjid", by.y = "ID", all.x = TRUE)
 
-df_cc <- df_chr %>% subset(select = c(Group, Age, Gender.x, Ethnicity, MIR132, MIR34A, MIR9, MIR941, MIR137, site, `BATCH NUMB`, Transition_status))
+df_cc <- df_chr %>% subset(select = c(Group, Age, Gender.x, Ethnicity, BMI, MIR132, MIR34A, MIR9, MIR941, MIR137, site, `BATCH NUMB`, Transition_status))
 df_cc <- df_cc %>% rename(batch = `BATCH NUMB`, Gender = Gender.x)
 df_cc <- df_cc[complete.cases(df_cc), ]
 
@@ -38,7 +41,7 @@ predictors <- list(
 
 # Residualize each predictor
 for (var in predictors) {
-  model <- lm(df_cc[[var]] ~ Age + Gender + Ethnicity, data = df_cc)
+  model <- lm(df_cc[[var]] ~ Age + Gender + Ethnicity + BMI, data = df_cc)
   df_cc[[paste0(var, "_resid")]] <- residuals(model)
 }
 
@@ -489,7 +492,7 @@ results_new <- data.frame(
 )
 
 results_new
-write_csv(results_new, "Results/CV_results_mean_offset_demo_220326.csv")
+write_csv(results_new, "Results/CV_results_mean_offset_demo_270326.csv")
 
 ##### External Validation #####
 
@@ -497,7 +500,7 @@ df_NAPLS <- read_excel("/Users/domoliver/Library/CloudStorage/Dropbox/Work/Paper
 
 summary(factor(df_NAPLS$`GROUP (UC = CTRL group)`))
 df_NAPLS <- df_NAPLS %>% subset(select = c(
-  demo_age_ym, demo_sex, demo_racial, `miR-9`, `miR-34`, `miR-132`, `miR-137`, `miR-941`, `GROUP (UC = CTRL group)`, BATCH, SiteNumber,
+  demo_age_ym, demo_sex, demo_racial, BMI, `miR-9`, `miR-34`, `miR-132`, `miR-137`, `miR-941`, `GROUP (UC = CTRL group)`, BATCH, SiteNumber,
   P1_SOPS, P2_SOPS, P3_SOPS, P4_SOPS, P5_SOPS, GlobalAssessmentFunction
 ))
 
@@ -565,7 +568,7 @@ predictors <- list(
 
 # Residualize each predictor
 for (var in predictors) {
-  model <- lm(df_NAPLS_chr[[var]] ~ demo_age_ym + demo_sex + ethnicity, data = df_NAPLS_chr)
+  model <- lm(df_NAPLS_chr[[var]] ~ demo_age_ym + demo_sex + ethnicity + BMI, data = df_NAPLS_chr)
   df_NAPLS_chr[[paste0(var, "_resid")]] <- residuals(model)
 }
 
@@ -738,9 +741,9 @@ results_NAPLS <- data.frame(
 )
 
 results_NAPLS
-write.csv(results_NAPLS, "Results/external_validation_results_mean_offset_220326_demo.csv", row.names = FALSE)
+write.csv(results_NAPLS, "Results/external_validation_results_mean_offset_270326_demo.csv", row.names = FALSE)
 
-logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = df_NAPLS_chr$obs, Prob = df_NAPLS_chr$pred)
+logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = df_NAPLS_chr$Transition, Prob = df_NAPLS_chr$pred)
 cal_plot_breaks(df_NAPLS_chr, truth = Transition, estimate = pred)
 
 recal_model <- glm(Transition ~ PI_CHR, data = df_NAPLS_chr, family = binomial(link = "logit"))
@@ -748,7 +751,7 @@ df_NAPLS_chr$recalibrated_probs <- predict(recal_model, type = "response")
 predicted_labels_recal <- ifelse(df_NAPLS_chr$recalibrated_probs >= 0.5, 1, 0)
 
 # Fit logistic calibration
-logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = df_NAPLS_chr$obs, Prob = df_NAPLS_chr$recalibrated_probs)
+logistic_calibration <- predRupdate::pred_val_probs(binary_outcome = df_NAPLS_chr$Transition, Prob = df_NAPLS_chr$recalibrated_probs)
 cal_plot_breaks(df_NAPLS_chr, truth = Transition, estimate = recalibrated_probs)
 
 # storage
@@ -867,4 +870,4 @@ results_NAPLS_recal <- data.frame(
   calibration_slope = if (!is.null(Slope_m)) paste0(formatC(Slope_m$mean, format = "f", digits = 2), " (", formatC(Slope_m$low, format = "f", digits = 2), "-", formatC(Slope_m$high, format = "f", digits = 2), ")") else NA_character_,
   stringsAsFactors = FALSE
 )
-write.csv(results_NAPLS_recal, "Results/external_validation_results_recal_mean_offset_220326_demo.csv", row.names = FALSE)
+write.csv(results_NAPLS_recal, "Results/external_validation_results_recal_mean_offset_270326_demo.csv", row.names = FALSE)
